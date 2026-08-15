@@ -63,9 +63,20 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
 
   const contagem = async (sql: string) => Number((await q1<{ n: string }>(sql))!.n)
 
+  // um ensalamento só vale enquanto bate com os alunos que estão no banco agora:
+  // "alunosVigentes" conta quem continua alocado, e comparamos com quem é elegível hoje
   const ensalamentos = await q<any>(
-    'SELECT dia_semana, turno, total_alunos, total_salas, criado_em FROM ensalamento ORDER BY criado_em DESC',
+    `SELECT e.dia_semana, e.turno, e.total_alunos, e.total_salas, e.criado_em,
+            (SELECT COUNT(*)::int
+               FROM sala s JOIN sala_aluno sa ON sa.sala_id = s.id
+              WHERE s.ensalamento_id = e.id) AS alunos_vigentes
+       FROM ensalamento e ORDER BY e.criado_em DESC`,
   )
+
+  const elegiveis = (dia: string, turno: string) =>
+    turmas
+      .filter((t) => t.dia_semana === dia && t.turno === turno && t.ensalar)
+      .reduce((s, t) => s + t.total_alunos, 0)
 
   res.json({
     totais: {
@@ -83,9 +94,12 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
       turno: e.turno,
       rotulo: ROTULO_DIA[e.dia_semana],
       rotuloTurno: ROTULO_TURNO[e.turno],
-      totalAlunos: e.total_alunos,
+      totalAlunos: e.alunos_vigentes,
       totalSalas: e.total_salas,
       criadoEm: e.criado_em,
+      // sem ninguém alocado, ou com número diferente do que é elegível hoje, não vale mais
+      desatualizado:
+        e.alunos_vigentes === 0 || e.alunos_vigentes !== elegiveis(e.dia_semana, e.turno),
     })),
   })
 })

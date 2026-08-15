@@ -47,9 +47,11 @@ async function viewPainel() {
                 <td>${linha.alunos}</td>
                 <td class="texto-2">${linha.salasPrevistas || '—'}</td>
                 <td>${
-                  gerado
-                    ? `<span class="pill ok">${gerado.totalSalas} sala${gerado.totalSalas === 1 ? '' : 's'} gerada${gerado.totalSalas === 1 ? '' : 's'}</span>`
-                    : '<span class="pill neutro">não gerado</span>'
+                  !gerado
+                    ? '<span class="pill neutro">não gerado</span>'
+                    : gerado.desatualizado
+                      ? '<span class="pill alerta">desatualizado — gere de novo</span>'
+                      : `<span class="pill ok">${gerado.totalSalas} sala${gerado.totalSalas === 1 ? '' : 's'} gerada${gerado.totalSalas === 1 ? '' : 's'}</span>`
                 }</td>
               </tr>`
             })

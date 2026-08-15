@@ -93,6 +93,13 @@ ALTER TABLE turma ADD  CONSTRAINT turma_turno_check CHECK (turno IN ('DIURNO','N
 
 /* Salas geradas antes da separação por turno misturavam os dois — descarta. */
 DELETE FROM ensalamento WHERE turno IS NULL OR turno NOT IN ('DIURNO','NOTURNO');
+
+/* Faxina: ensalamento que ficou sem nenhum aluno (os alunos foram apagados depois)
+   não representa mais nada — sairia no painel como "salas geradas" mentindo. */
+DELETE FROM ensalamento e
+ WHERE NOT EXISTS (
+   SELECT 1 FROM sala s JOIN sala_aluno sa ON sa.sala_id = s.id WHERE s.ensalamento_id = e.id
+ );
 `
 
 export async function migrar() {

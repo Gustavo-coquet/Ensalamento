@@ -89,7 +89,7 @@ export async function semear({ silencioso = false } = {}) {
 
   const email = (process.env.ADMIN_EMAIL || '').trim().toLowerCase()
   const senha = process.env.ADMIN_SENHA || ''
-  const nome = (process.env.ADMIN_NOME || '').trim() || 'Administração'
+  const nome = (process.env.ADMIN_NOME || '').trim() || 'Administrador'
 
   if (!email || senha.length < 6) {
     log('  (ADMIN_EMAIL/ADMIN_SENHA não definidos — conta de administrador não criada)')
@@ -100,11 +100,18 @@ export async function semear({ silencioso = false } = {}) {
   const forcar = process.env.FORCAR_SENHA_ADMIN === '1'
 
   if (existente && !forcar) {
-    // mantém o nome em dia: basta ajustar ADMIN_NOME e redeployar
+    // mantém o nome em dia: basta ajustar ADMIN_NOME e redeployar.
+    // Sem ADMIN_NOME, só troca o rótulo antigo "Coordenação" por "Administrador".
     if (process.env.ADMIN_NOME?.trim()) {
       await q("UPDATE usuario SET nome = $1, papel = 'ADMIN', ativo = TRUE WHERE id = $2", [nome, existente.id])
     } else {
-      await q("UPDATE usuario SET papel = 'ADMIN', ativo = TRUE WHERE id = $1", [existente.id])
+      await q(
+        `UPDATE usuario
+            SET nome = CASE WHEN nome IN ('Coordenação', 'Coordenacao') THEN 'Administrador' ELSE nome END,
+                papel = 'ADMIN', ativo = TRUE
+          WHERE id = $1`,
+        [existente.id],
+      )
     }
     return
   }

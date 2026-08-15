@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { q, q1 } from '../lib/db'
 import { exigeLogin, turmaPermitida } from '../lib/auth'
 import { atribuirDisciplinas, disciplinasComDono, lerItens, MAX_DISCIPLINAS } from '../lib/atribuicao'
+import { invalidarPorTurma } from '../lib/ensalamento'
 import {
   chaveNome,
   normalizaNome,
@@ -15,7 +16,7 @@ import {
 export const rotasTurmas = Router()
 rotasTurmas.use(exigeLogin)
 
-/** Turmas visíveis: coordenação vê todas, professor vê as dele. */
+/** Turmas visíveis: administrador vê todas, professor vê as dele. */
 rotasTurmas.get('/', async (req, res) => {
   const usuario = req.usuario!
   const soDoProfessor = usuario.papel === 'ADMIN' ? '' : 'WHERE t.professor_id = $1'
@@ -112,6 +113,7 @@ rotasTurmas.put('/:id', async (req, res) => {
     [dia, curso, ensalar, turno, turma.id],
   )
 
+  await invalidarPorTurma([turma.id])
   res.json({ ok: true, turma: atualizada })
 })
 
@@ -185,6 +187,7 @@ rotasTurmas.post('/:id/alunos/importar', async (req, res) => {
   const novos = inseridos.filter((r) => r.inserido).length
   const total = Number((await q1<{ n: string }>('SELECT COUNT(*) AS n FROM aluno WHERE turma_id = $1', [turma.id]))!.n)
 
+  await invalidarPorTurma([turma.id])
   res.json({ ok: true, inseridos: novos, atualizados: inseridos.length - novos, total, erros })
 })
 
@@ -204,6 +207,7 @@ rotasTurmas.post('/:id/alunos', async (req, res) => {
      VALUES ($1, $2, $3, $4) RETURNING id, matricula, nome`,
     [turma.id, matricula, nome, chaveNome(nome)],
   )
+  await invalidarPorTurma([turma.id])
   res.status(201).json({ aluno })
 })
 
@@ -212,6 +216,7 @@ rotasTurmas.delete('/:id/alunos/:alunoId', async (req, res) => {
   if (!turma) return res.status(404).json({ erro: 'Turma não encontrada' })
 
   await q('DELETE FROM aluno WHERE id = $1 AND turma_id = $2', [req.params.alunoId, turma.id])
+  await invalidarPorTurma([turma.id])
   res.json({ ok: true })
 })
 
@@ -220,6 +225,7 @@ rotasTurmas.delete('/:id/alunos', async (req, res) => {
   if (!turma) return res.status(404).json({ erro: 'Turma não encontrada' })
 
   const removidos = await q('DELETE FROM aluno WHERE turma_id = $1 RETURNING id', [turma.id])
+  await invalidarPorTurma([turma.id])
   res.json({ ok: true, removidos: removidos.length })
 })
 

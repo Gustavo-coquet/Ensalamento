@@ -95,6 +95,34 @@ export async function gerarEnsalamento(dia: Dia, turno: Turno, capacidade = 15) 
   return carregarEnsalamento(dia, turno)
 }
 
+/**
+ * Descarta as salas já geradas de um dia+turno. Chamado sempre que algo que
+ * alimenta o ensalamento muda (aluno, dia, turno, professor, mistura), para o
+ * painel nunca mostrar uma distribuição que não corresponde mais aos dados.
+ */
+export async function invalidarEnsalamento(pares: { dia: string | null; turno: string }[]) {
+  const validos = pares.filter((p) => p.dia)
+  if (!validos.length) return
+
+  await q(
+    `DELETE FROM ensalamento
+      WHERE (dia_semana, turno) IN (
+        SELECT * FROM UNNEST($1::text[], $2::text[])
+      )`,
+    [validos.map((p) => p.dia), validos.map((p) => p.turno)],
+  )
+}
+
+/** Invalida o ensalamento do dia+turno das turmas informadas. */
+export async function invalidarPorTurma(turmaIds: string[]) {
+  if (!turmaIds.length) return
+  const turmas = await q<any>(
+    'SELECT DISTINCT dia_semana, turno FROM turma WHERE id = ANY($1::uuid[])',
+    [turmaIds],
+  )
+  await invalidarEnsalamento(turmas.map((t) => ({ dia: t.dia_semana, turno: t.turno })))
+}
+
 export type SalaMontada = {
   numero: number
   rotulo: string

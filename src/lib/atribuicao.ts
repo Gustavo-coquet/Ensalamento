@@ -1,4 +1,5 @@
 import { q, transacao } from './db'
+import { invalidarEnsalamento } from './ensalamento'
 import { validaTurno, CURSOS, DIAS, type CursoNome, type Dia, type Turno } from './texto'
 
 /** Cada disciplina do professor carrega o próprio curso, dia, turno e mistura. */
@@ -62,8 +63,8 @@ export async function atribuirDisciplinas(
   itens: ItemAtribuicao[],
 ): Promise<ResultadoAtribuicao> {
   const existentes = await q<any>(
-    `SELECT t.id, t.disciplina_id, t.professor_id, d.nome AS disciplina,
-            COALESCE(u.nome, '') AS dono
+    `SELECT t.id, t.disciplina_id, t.professor_id, t.dia_semana, t.turno,
+            d.nome AS disciplina, COALESCE(u.nome, '') AS dono
        FROM turma t
        JOIN disciplina d  ON d.id = t.disciplina_id
        LEFT JOIN usuario u ON u.id = t.professor_id`,
@@ -126,6 +127,19 @@ export async function atribuirDisciplinas(
       )
     }
   })
+
+  // tudo o que foi mexido derruba as salas já geradas daquele dia+turno
+  const afetados = [
+    ...existentes
+      .filter((t) => t.professor_id === professorId)
+      .map((t) => ({ dia: t.dia_semana as string | null, turno: t.turno as string })),
+    ...paraVincular.map((i) => ({ dia: i.dia as string | null, turno: i.turno as string })),
+    ...paraLiberar
+      .map((id) => existentes.find((t) => t.id === id))
+      .filter(Boolean)
+      .map((t: any) => ({ dia: t.dia_semana as string | null, turno: t.turno as string })),
+  ]
+  await invalidarEnsalamento(afetados)
 
   return { vinculadas: paraVincular.length, criadas, liberadas: paraLiberar.length, ocupadas }
 }
