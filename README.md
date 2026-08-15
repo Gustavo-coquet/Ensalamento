@@ -153,3 +153,5 @@ ensalamento/
   e as estatísticas por questão.
 - Etiquetas/PDF por sala para colar na porta no dia da prova.
 - Registro de quem alterou o quê, para auditar mudanças de última hora.
+
+
