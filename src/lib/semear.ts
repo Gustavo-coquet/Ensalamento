@@ -105,9 +105,16 @@ export async function semear({ silencioso = false } = {}) {
     if (process.env.ADMIN_NOME?.trim()) {
       await q("UPDATE usuario SET nome = $1, papel = 'ADMIN', ativo = TRUE WHERE id = $2", [nome, existente.id])
     } else {
+      // compara sem acento e sem caixa: o nome pode ter sido gravado com o "ç"
+      // em forma decomposta, e aí a comparação literal nunca casaria
       await q(
         `UPDATE usuario
-            SET nome = CASE WHEN nome IN ('Coordenação', 'Coordenacao') THEN 'Administrador' ELSE nome END,
+            SET nome = CASE
+                         WHEN upper(regexp_replace(normalize(nome, NFD), E'[\\u0300-\\u036f]', '', 'g'))
+                              IN ('COORDENACAO', 'COORDENACAO GERAL')
+                         THEN 'Administrador'
+                         ELSE nome
+                       END,
                 papel = 'ADMIN', ativo = TRUE
           WHERE id = $1`,
         [existente.id],

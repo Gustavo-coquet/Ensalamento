@@ -528,11 +528,35 @@ async function viewManutencao() {
         descarta as salas já geradas. As turmas, os professores e os gabaritos continuam.
       </p>
       <button class="secundaria perigo" id="m-limpar">Apagar alunos de todas as turmas</button>
+    </div>
+
+    <div class="cartao cantos" style="max-width:560px;margin-top:22px"><div class="canto"></div>
+      <h3>Apagar todos os professores</h3>
+      <p class="texto-2 pequeno" style="margin-bottom:10px">
+        Remove de uma vez todas as contas de professor e <strong>todas as turmas</strong> —
+        com os alunos, os gabaritos e as salas geradas. Serve para recomeçar o semestre
+        do zero antes de colar a nova lista em <em>Cadastro em lote</em>.
+      </p>
+      <p class="pequeno texto-3" style="margin-bottom:16px">
+        A sua conta de administrador e as 60 disciplinas continuam intactas.
+      </p>
+      <button class="secundaria perigo" id="m-professores">Apagar todos os professores</button>
     </div>`
 
   el('m-limpar').onclick = async () => {
     if (prompt('Isso não tem volta. Digite APAGAR para confirmar:') !== 'APAGAR') return
     const r = await api('/admin/limpar-alunos', { method: 'POST', body: { confirmacao: 'APAGAR' } })
     avisar(`${r.removidos} aluno(s) removido(s).`)
+  }
+
+  el('m-professores').onclick = async () => {
+    if (!confirm('Apagar TODOS os professores e as turmas deles? Isso não tem volta.')) return
+    if (prompt('Digite APAGAR para confirmar:') !== 'APAGAR') return
+    try {
+      const r = await api('/admin/limpar-professores', { method: 'POST', body: { confirmacao: 'APAGAR' } })
+      avisar(`${r.professores} professor(es), ${r.turmas} turma(s) e ${r.alunos} aluno(s) removidos.`)
+    } catch (e) {
+      avisar(e.message, 'erro')
+    }
   }
 }

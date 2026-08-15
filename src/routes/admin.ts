@@ -311,6 +311,34 @@ rotasAdmin.post('/limpar-alunos', async (req, res) => {
   res.json({ ok: true, removidos: removidos.length })
 })
 
+/**
+ * Zera o cadastro: apaga todas as contas de PROFESSOR e todas as turmas (com os
+ * alunos, os gabaritos e as salas). Contas de administrador e as 60 disciplinas
+ * ficam. Serve para recomeçar o semestre sem catar um a um.
+ */
+rotasAdmin.post('/limpar-professores', async (req, res) => {
+  if (req.body?.confirmacao !== 'APAGAR') return res.status(400).json({ erro: 'Confirmação inválida' })
+
+  const resumo = await transacao(async (exec) => {
+    const professores = await exec<{ id: string }>(
+      "SELECT id FROM usuario WHERE papel = 'PROFESSOR'",
+    )
+    const ids = professores.map((p) => p.id)
+
+    const alunos = await exec('SELECT id FROM aluno')
+    // toda turma nasce de um professor: sem eles, nenhuma turma faz sentido.
+    // Apagar a turma leva junto os alunos e as alocações (cascata do banco).
+    const turmas = await exec('DELETE FROM turma RETURNING id')
+    if (ids.length) await exec('DELETE FROM usuario WHERE id = ANY($1::uuid[])', [ids])
+
+    return { professores: ids.length, turmas: turmas.length, alunos: alunos.length }
+  })
+
+  // qualquer distribuição existente perdeu o chão
+  await q('DELETE FROM ensalamento')
+  res.json({ ok: true, ...resumo })
+})
+
 /* ------------------------------- Ensalamento ------------------------------ */
 
 rotasAdmin.post('/ensalamento/:dia/:turno', async (req, res) => {
