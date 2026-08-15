@@ -7,11 +7,13 @@ async function viewMinhasTurmas() {
   if (!turmas.length) {
     conteudo.innerHTML = `
       <div class="rotulo-secao">Minhas turmas</div>
-      <h2 class="titulo">Nenhuma turma atribuída</h2>
-      <div class="cartao cantos"><div class="canto"></div>
-        <p class="texto-2">Você ainda não tem disciplinas vinculadas ao seu usuário.
-        Peça ao administrador para cadastrar a sua turma.</p>
-      </div>`
+      <h2 class="titulo">Escolha as suas disciplinas</h2>
+      <div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
+        <p class="texto-2">Você ainda não tem disciplinas vinculadas. Marque abaixo as que
+        você leciona — depois é só entrar em cada uma para colar a lista de alunos e o gabarito.</p>
+      </div>
+      <div id="escolha-disciplinas"></div>`
+    await montaEscolhaDisciplinas('escolha-disciplinas', viewMinhasTurmas)
     return
   }
 
@@ -40,11 +42,105 @@ async function viewMinhasTurmas() {
   conteudo.innerHTML = `
     <div class="rotulo-secao">Minhas turmas</div>
     <h2 class="titulo">${turmas.length} turma${turmas.length === 1 ? '' : 's'} sob sua responsabilidade</h2>
-    <div class="grade g2">${cartoes.join('')}</div>`
+    <div class="grade g2" style="margin-bottom:22px">${cartoes.join('')}</div>
+    <div id="escolha-disciplinas"></div>`
 
   conteudo.querySelectorAll('[data-turma]').forEach((card) => {
     card.onclick = () => irPara(`turma/${card.dataset.turma}`)
   })
+
+  await montaEscolhaDisciplinas('escolha-disciplinas', viewMinhasTurmas)
+}
+
+/**
+ * Painel de escolha das disciplinas do próprio professor: busca, marca as dele,
+ * mostra quais já são de outra pessoa e aplica dia/turno de uma vez.
+ */
+async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
+  const [{ disciplinas }, { turmas }] = await Promise.all([
+    api('/turmas/disciplinas/catalogo'),
+    api('/turmas'),
+  ])
+
+  const meus = new Set(turmas.map((t) => t.numero))
+  const marcadas = new Set(disciplinas.filter((d) => meus.has(d.numero)).map((d) => d.id))
+  const diaAtual = turmas.find((t) => t.diaSemana)?.diaSemana || ''
+  const turnoAtual = turmas[0]?.turno || 'NOTURNO'
+
+  el(alvoId).innerHTML = `
+    <div class="cartao cantos"><div class="canto"></div>
+      <div class="rotulo-secao" style="margin-bottom:6px">Minhas disciplinas</div>
+      <p class="pequeno texto-3" style="margin-bottom:14px">
+        Marque tudo o que você leciona. O dia e o turno escolhidos aqui valem para as
+        disciplinas marcadas — dá para ajustar cada uma depois, individualmente.
+      </p>
+
+      <div class="grade g3" style="margin-bottom:14px">
+        <label class="campo" style="margin:0"><span>Dia da prova</span>${selectDias(diaAtual, 'id="d-dia"')}</label>
+        <label class="campo" style="margin:0"><span>Turno</span>${selectTurnos(turnoAtual, 'id="d-turno"')}</label>
+        <label class="campo" style="margin:0"><span>Buscar disciplina</span>
+          <input id="d-busca" placeholder="digite parte do nome" />
+        </label>
+      </div>
+
+      <div id="d-lista" class="lista-check"></div>
+
+      <div class="linha-botoes" style="margin-top:16px">
+        <button class="acao" id="d-salvar">Salvar minhas disciplinas</button>
+        <span class="pequeno texto-3" id="d-contagem"></span>
+      </div>
+    </div>`
+
+  function desenha() {
+    const busca = chaveSimples(el('d-busca').value)
+    const visiveis = disciplinas.filter((d) => !busca || chaveSimples(`${d.numero} ${d.nome}`).includes(busca))
+
+    el('d-lista').innerHTML =
+      visiveis
+        .map((d) => {
+          const deOutro = d.professorId && !marcadas.has(d.id)
+          return `
+            <label class="item-check ${deOutro ? 'ocupada' : ''}">
+              <input type="checkbox" data-id="${d.id}" ${marcadas.has(d.id) ? 'checked' : ''} ${deOutro ? 'disabled' : ''} />
+              <span><span class="texto-3 mono">${d.numero}</span> ${esc(d.nome)}
+              ${deOutro ? `<span class="pill neutro">${esc(d.professorNome)}</span>` : ''}</span>
+            </label>`
+        })
+        .join('') || '<div class="vazio">Nada encontrado.</div>'
+
+    el('d-contagem').textContent = `${marcadas.size} marcada(s)`
+
+    el('d-lista').querySelectorAll('input[type=checkbox]').forEach((c) => {
+      c.onchange = () => {
+        const id = Number(c.dataset.id)
+        c.checked ? marcadas.add(id) : marcadas.delete(id)
+        el('d-contagem').textContent = `${marcadas.size} marcada(s)`
+      }
+    })
+  }
+
+  el('d-busca').oninput = desenha
+  desenha()
+
+  el('d-salvar').onclick = async () => {
+    try {
+      const r = await api('/turmas/minhas-disciplinas', {
+        method: 'POST',
+        body: {
+          disciplinaIds: [...marcadas],
+          diaSemana: el('d-dia').value || null,
+          turno: el('d-turno').value,
+        },
+      })
+      if (r.ocupadas?.length) {
+        avisar(`Já tem dono: ${r.ocupadas.map((o) => `${o.disciplina} (${o.professor})`).join(', ')}`, 'info')
+      }
+      await aoSalvar()
+      avisar(`${r.vinculadas} disciplina(s) salva(s).`)
+    } catch (e) {
+      avisar(e.message, 'erro')
+    }
+  }
 }
 
 async function viewTurma(turmaId) {

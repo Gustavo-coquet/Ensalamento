@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { q, q1, transacao } from '../lib/db'
 import { exigeAdmin } from '../lib/auth'
 import { lerLinhas, acharDisciplina, type Disciplina } from '../lib/importacao'
+import { atribuirDisciplinas, disciplinasComDono } from '../lib/atribuicao'
 import { paraCSV } from '../lib/csv'
 import { carregarEnsalamento, gerarEnsalamento } from '../lib/ensalamento'
 import {
@@ -207,6 +208,7 @@ rotasAdmin.post('/importar', async (req, res) => {
       linha: l.linha,
       professor: l.professor,
       email: l.email,
+      senha: l.senha,
       dia: l.dia,
       turno: l.turno,
       disciplinaTexto: l.disciplina,
@@ -217,6 +219,11 @@ rotasAdmin.post('/importar', async (req, res) => {
       erro: l.erro,
     }
     if (base.erro) return base
+
+    base.acaoProfessor = porEmail.has(l.email) ? 'existente' : 'criar'
+
+    // linha sem disciplina: cadastra só o professor, ele escolhe as dele depois
+    if (!l.disciplina) return base
 
     const { achou, ambigua } = acharDisciplina(l.disciplina, disciplinas)
     if (ambigua) {
@@ -230,7 +237,6 @@ rotasAdmin.post('/importar', async (req, res) => {
 
     base.disciplinaId = achou.id
     base.disciplinaNome = achou.nome
-    base.acaoProfessor = porEmail.has(l.email) ? 'existente' : 'criar'
     base.acaoTurma = porDisciplina.has(achou.id) ? 'atualizar' : 'criar'
     return base
   })
@@ -266,7 +272,10 @@ rotasAdmin.post('/importar', async (req, res) => {
           porEmail.set(r.email, { id: professorId, email: r.email, nome: r.professor })
         }
 
-        const turmaExistente = porDisciplina.get(r.disciplinaId!)
+        // linha só de professor: para por aqui, ele escolhe as disciplinas depois
+        if (!r.disciplinaId) continue
+
+        const turmaExistente = porDisciplina.get(r.disciplinaId)
         if (turmaExistente) {
           await exec(
             `UPDATE turma SET professor_id = $1,
@@ -294,12 +303,63 @@ rotasAdmin.post('/importar', async (req, res) => {
       linhas: resultado.length,
       validas: validas.length,
       erros: resultado.length - validas.length,
+      soProfessor: validas.filter((r) => !r.disciplinaId).length,
       professoresNovos: new Set(validas.filter((r) => r.acaoProfessor === 'criar').map((r) => r.email)).size,
       turmasNovas: validas.filter((r) => r.acaoTurma === 'criar').length,
       turmasAtualizadas: validas.filter((r) => r.acaoTurma === 'atualizar').length,
     },
     linhas: resultado,
   })
+})
+
+/** Grade de atribuição: professores + o que cada um já leciona. */
+rotasAdmin.get('/atribuicao', async (_req, res) => {
+  const professores = await q<any>(
+    `SELECT u.id, u.nome, u.email, u.papel
+       FROM usuario u
+      WHERE u.papel IN ('PROFESSOR','ADMIN')
+      ORDER BY u.papel DESC, u.nome ASC`,
+  )
+
+  const turmas = await q<any>(
+    `SELECT t.professor_id, t.disciplina_id, t.dia_semana, t.turno
+       FROM turma t WHERE t.professor_id IS NOT NULL`,
+  )
+
+  res.json({
+    disciplinas: await disciplinasComDono(),
+    professores: professores.map((p) => {
+      const dele = turmas.filter((t) => t.professor_id === p.id)
+      return {
+        id: p.id,
+        nome: p.nome,
+        email: p.email,
+        papel: p.papel,
+        disciplinaIds: dele.map((t) => t.disciplina_id),
+        diaSemana: dele.find((t) => t.dia_semana)?.dia_semana ?? '',
+        turno: dele[0]?.turno ?? 'NOTURNO',
+      }
+    }),
+  })
+})
+
+/** O administrador preenchendo pelo professor — mesma regra do que ele faria sozinho. */
+rotasAdmin.post('/atribuicao/:professorId', async (req, res) => {
+  const professor = await q1<any>("SELECT id FROM usuario WHERE id = $1 AND papel IN ('PROFESSOR','ADMIN')", [
+    req.params.professorId,
+  ])
+  if (!professor) return res.status(404).json({ erro: 'Professor não encontrado' })
+
+  const ids = Array.isArray(req.body?.disciplinaIds) ? req.body.disciplinaIds.map(Number) : []
+  const diaBruto = req.body?.diaSemana ? String(req.body.diaSemana) : ''
+  const turnoBruto = req.body?.turno ? String(req.body.turno) : ''
+
+  if (diaBruto && !validaDia(diaBruto)) return res.status(400).json({ erro: 'Dia inválido' })
+  const turno = turnoBruto ? validaTurno(turnoBruto) : null
+  if (turnoBruto && !turno) return res.status(400).json({ erro: 'Turno inválido' })
+
+  const resultado = await atribuirDisciplinas(professor.id, ids, validaDia(diaBruto), turno)
+  res.json({ ok: true, ...resultado })
 })
 
 rotasAdmin.put('/turmas/:id/professor', async (req, res) => {

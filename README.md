@@ -15,6 +15,8 @@ navegador.
 
 **Professor**
 
+- **escolhe sozinho as disciplinas que leciona**, marcando numa lista com busca —
+  o que já é de outro professor aparece bloqueado, com o nome do dono;
 - vê apenas a(s) disciplina(s) vinculada(s) ao usuário dele;
 - define o dia da prova, o curso e o turno (diurno ou noturno);
 - marca se a turma **entra na mistura de salas** — se desmarcar, os alunos continuam
@@ -26,9 +28,12 @@ navegador.
 
 **Administrador**
 
-- cadastra professores e turmas (disciplina → professor) um a um **ou em lote**,
-  colando uma lista no formato `DISCIPLINA ; PROFESSOR ; E-MAIL ; SENHA ; DIA ; TURNO`
-  (as três primeiras obrigatórias) — com botão de *Conferir* antes de gravar;
+- cadastra professores e turmas um a um **ou em lote**, colando uma lista
+  (`PROFESSOR ; E-MAIL ; SENHA` para só criar o acesso, ou
+  `DISCIPLINA ; PROFESSOR ; E-MAIL ; SENHA ; DIA ; TURNO` para já deixar pronto) —
+  com botão de *Conferir* antes de gravar;
+- se quiser, preenche dia, turno e disciplinas **pelo** professor numa grade — opcional,
+  quem não for preenchido faz sozinho ao entrar;
 - acompanha no painel o que ainda falta: turma sem dia, sem professor, sem gabarito;
 - gera as salas de um dia com um clique, escolhendo a lotação máxima;
 - vê cada sala nas duas ordens — **alfabética** e **por disciplina** — com o resumo de

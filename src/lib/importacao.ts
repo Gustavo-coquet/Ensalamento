@@ -2,16 +2,21 @@ import { chaveNome, normalizaNome, normalizaTurno, DIAS, type Dia, type Turno } 
 
 /**
  * Lê a lista colada pelo administrador no cadastro em lote.
+ * Colunas separadas por TAB, ";" ou "|". Dois formatos, reconhecidos linha a linha
+ * pela posição do e-mail:
  *
- * Uma linha por turma, colunas separadas por TAB, ";" ou "|":
- *   DISCIPLINA ; PROFESSOR ; E-MAIL ; SENHA ; DIA ; TURNO
+ *   1) só o professor      → PROFESSOR ; E-MAIL ; SENHA
+ *      (ele entra depois e escolhe as próprias disciplinas, dia e turno)
  *
- * Só as três primeiras são obrigatórias. Sem senha, entra a senha padrão da tela.
- * Sem dia/turno, a turma fica pendente e o próprio professor completa depois.
+ *   2) já com a disciplina → DISCIPLINA ; PROFESSOR ; E-MAIL ; SENHA ; DIA ; TURNO
+ *      (as três primeiras obrigatórias; dia e turno podem ficar em branco)
+ *
+ * Sem senha, entra a senha padrão da tela.
  */
 
 export type LinhaLida = {
   linha: number
+  /** vazio quando a linha cadastra só o professor */
   disciplina: string
   professor: string
   email: string
@@ -20,6 +25,8 @@ export type LinhaLida = {
   turno: Turno
   erro?: string
 }
+
+const PARECE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** Aceita "terça", "TERCA", "terça-feira", "ter" — devolve null se não reconhecer. */
 export function normalizaDia(entrada: unknown): Dia | null {
@@ -49,7 +56,12 @@ export function lerLinhas(texto: string, senhaPadrao: string): LinhaLida[] {
     // ignora a linha de cabeçalho, se a pessoa colar junto
     if (CABECALHOS.includes(chaveNome(col[0] ?? ''))) return
 
-    const [disciplina = '', professor = '', email = '', senha = '', dia = '', turno = ''] = col
+    // e-mail na 2ª coluna = linha de professor avulso; na 3ª = linha com disciplina
+    const soProfessor = PARECE_EMAIL.test((col[1] ?? '').trim())
+
+    const [disciplina, professor, email, senha, dia, turno] = soProfessor
+      ? ['', col[0] ?? '', col[1] ?? '', col[2] ?? '', '', '']
+      : [col[0] ?? '', col[1] ?? '', col[2] ?? '', col[3] ?? '', col[4] ?? '', col[5] ?? '']
 
     const registro: LinhaLida = {
       linha,
@@ -61,10 +73,9 @@ export function lerLinhas(texto: string, senhaPadrao: string): LinhaLida[] {
       turno: turno.trim() ? normalizaTurno(turno) : 'NOTURNO',
     }
 
-    if (!registro.disciplina) registro.erro = 'Falta a disciplina'
-    else if (!registro.professor) registro.erro = 'Falta o nome do professor'
+    if (!registro.professor) registro.erro = 'Falta o nome do professor'
     else if (!registro.email) registro.erro = 'Falta o e-mail'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registro.email)) registro.erro = 'E-mail inválido'
+    else if (!PARECE_EMAIL.test(registro.email)) registro.erro = 'E-mail inválido'
     else if (registro.senha.length < 6) registro.erro = 'Senha inicial precisa de 6 caracteres'
     else if (dia.trim() && !registro.dia) registro.erro = `Dia não reconhecido: "${dia.trim()}"`
 

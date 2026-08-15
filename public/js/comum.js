@@ -52,6 +52,15 @@ function esc(texto) {
 
 function el(id) { return document.getElementById(id) }
 
+/** Minúsculas sem acento — para buscar disciplina sem se preocupar com "ç" e "á". */
+function chaveSimples(texto) {
+  return String(texto ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
 /** Mostra um aviso temporário no topo do conteúdo. */
 function avisar(mensagem, tipo = 'ok') {
   const alvo = el('conteudo')
