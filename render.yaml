@@ -1,0 +1,27 @@
+# Blueprint do Render. Em "New +" → "Blueprint", aponte para o repositório
+# e o serviço sobe com estas configurações.
+#
+# O banco NÃO está declarado aqui de propósito: o Postgres gratuito do Render
+# expira em 30 dias. Crie o banco no Neon (gratuito e sem prazo) e cole a
+# connection string em DATABASE_URL no painel do Render.
+services:
+  - type: web
+    name: ensalamento
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/saude
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # connection string do Neon
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false # seu e-mail — vira a conta de coordenação no primeiro boot
+      - key: ADMIN_SENHA
+        sync: false # senha inicial (troque depois pela tela)
+      - key: ADMIN_NOME
+        sync: false

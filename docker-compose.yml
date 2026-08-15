@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ensalamento-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ensalamento
+      POSTGRES_PASSWORD: ensalamento
+      POSTGRES_DB: ensalamento
+    ports:
+      - '5432:5432'
+    volumes:
+      - dados:/var/lib/postgresql/data
+
+volumes:
+  dados:
