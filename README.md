@@ -28,12 +28,11 @@ navegador.
 
 **Administrador**
 
-- cadastra professores e turmas um a um **ou em lote**, colando uma lista
-  (`PROFESSOR ; E-MAIL ; SENHA` para só criar o acesso, ou
-  `DISCIPLINA ; PROFESSOR ; E-MAIL ; SENHA ; DIA ; TURNO` para já deixar pronto) —
-  com botão de *Conferir* antes de gravar;
-- se quiser, preenche dia, turno e disciplinas **pelo** professor numa grade — opcional,
-  quem não for preenchido faz sozinho ao entrar;
+- cadastra os professores **em lote**, colando uma lista `NOME ; E-MAIL ; SENHA`
+  (a senha é opcional) — com botão de *Conferir* antes de gravar;
+- se quiser, preenche as disciplinas **pelo** professor numa grade, cada uma com o seu
+  dia e turno (até 10 por professor) — opcional, quem não for preenchido faz sozinho;
+- redefine senha e remove professor pela mesma grade;
 - acompanha no painel o que ainda falta: turma sem dia, sem professor, sem gabarito;
 - gera as salas de um dia com um clique, escolhendo a lotação máxima;
 - vê cada sala nas duas ordens — **alfabética** e **por disciplina** — com o resumo de

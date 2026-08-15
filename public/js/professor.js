@@ -209,9 +209,15 @@ async function viewTurma(turmaId) {
       <div class="cartao cantos"><div class="canto"></div>
         <div class="rotulo-secao" style="margin-bottom:16px">Configuração da prova</div>
 
-        <label class="campo"><span>Dia da prova</span>${selectDias(turma.diaSemana, 'id="f-dia"')}</label>
+        <p class="pequeno texto-3" style="margin:-6px 0 16px">
+          <strong style="color:var(--texto-2)">
+            ${turma.diaSemana ? esc(ROTULO_DIA[turma.diaSemana]) : 'dia não definido'}
+            · ${esc(ROTULO_TURNO[turma.turno] || turma.turno)}
+          </strong><br />
+          O dia e o turno vêm da tela <em>Minhas turmas</em>, na lista de disciplinas.
+        </p>
+
         <label class="campo"><span>Curso</span>${selectCursos(turma.curso, 'id="f-curso"')}</label>
-        <label class="campo"><span>Turno</span>${selectTurnos(turma.turno, 'id="f-turno"')}</label>
 
         <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;margin:16px 0">
           <input type="checkbox" id="f-ensalar" ${turma.ensalar ? 'checked' : ''} style="width:auto;margin-top:4px" />
@@ -329,9 +335,9 @@ async function viewTurma(turmaId) {
     await api(`/turmas/${turmaId}`, {
       method: 'PUT',
       body: {
-        diaSemana: el('f-dia').value || null,
+        diaSemana: turma.diaSemana || null,
         curso: el('f-curso').value,
-        turno: el('f-turno').value,
+        turno: turma.turno,
         ensalar: el('f-ensalar').checked,
       },
     })

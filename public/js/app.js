@@ -10,7 +10,6 @@ const MENU_ADMIN = [
   { rota: 'painel', texto: 'Painel' },
   { rota: 'salas', texto: 'Gerar salas' },
   { rota: 'admin-turmas', texto: 'Turmas' },
-  { rota: 'professores', texto: 'Professores' },
   { rota: 'importar', texto: 'Cadastro em lote' },
   { separador: true },
   { rota: 'manutencao', texto: 'Manutenção' },
@@ -56,7 +55,6 @@ async function rotear() {
     painel: viewPainel,
     salas: viewSalas,
     'admin-turmas': viewAdminTurmas,
-    professores: viewProfessores,
     importar: viewImportar,
     manutencao: viewManutencao,
     turmas: viewMinhasTurmas,
@@ -64,7 +62,7 @@ async function rotear() {
     turma: () => viewTurma(param),
   }
 
-  const somenteAdmin = ['painel', 'salas', 'admin-turmas', 'professores', 'importar', 'manutencao']
+  const somenteAdmin = ['painel', 'salas', 'admin-turmas', 'importar', 'manutencao']
   if (somenteAdmin.includes(base) && !ehAdmin()) return irPara('turmas')
 
   const tela = telas[base]

@@ -192,7 +192,7 @@ rotasAdmin.post('/turmas', async (req, res) => {
  */
 rotasAdmin.post('/importar', async (req, res) => {
   const texto = String(req.body?.texto ?? '')
-  const senhaPadrao = String(req.body?.senhaPadrao ?? '').trim() || 'lasalle2026'
+  const senhaPadrao = String(req.body?.senhaPadrao ?? '').trim() || '000000'
   const aplicar = req.body?.modo === 'aplicar'
 
   if (senhaPadrao.length < 6) {

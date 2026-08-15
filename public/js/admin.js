@@ -181,98 +181,6 @@ async function viewAdminTurmas() {
   })
 }
 
-/* -------------------------------- professores ------------------------------- */
-
-async function viewProfessores() {
-  const { usuarios } = await api('/admin/usuarios')
-
-  el('conteudo').innerHTML = `
-    <div class="rotulo-secao">Professores</div>
-    <h2 class="titulo">${usuarios.length} usuário${usuarios.length === 1 ? '' : 's'}</h2>
-
-    <div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
-      <div class="rotulo-secao" style="margin-bottom:14px">Novo usuário</div>
-      <div class="grade g2">
-        <label class="campo"><span>Nome</span><input id="u-nome" placeholder="Nome do professor" /></label>
-        <label class="campo"><span>E-mail</span><input id="u-email" type="email" placeholder="prof.nome@soulasalle.com.br" /></label>
-        <label class="campo"><span>Senha inicial</span><input id="u-senha" placeholder="mínimo 6 caracteres" /></label>
-        <label class="campo"><span>Papel</span>
-          <select id="u-papel">
-            <option value="PROFESSOR">Professor</option>
-            <option value="ADMIN">Administrador (vê tudo)</option>
-          </select>
-        </label>
-      </div>
-      <button class="acao" id="u-criar">+ Criar usuário</button>
-    </div>
-
-    <div class="cartao cantos"><div class="canto"></div>
-      <table>
-        <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th style="width:70px">Turmas</th><th style="width:150px"></th></tr></thead>
-        <tbody>
-          ${usuarios
-            .map(
-              (u) => `<tr>
-                <td>${esc(u.nome)}</td>
-                <td class="texto-2 pequeno">${esc(u.email)}</td>
-                <td>${u.papel === 'ADMIN' ? '<span class="pill ok">administrador</span>' : '<span class="pill neutro">professor</span>'}</td>
-                <td>${u.turmas}</td>
-                <td style="text-align:right">
-                  <button class="secundaria" style="padding:4px 10px;font-size:12px" data-senha="${u.id}">senha</button>
-                  <button class="mini" data-apagar="${u.id}" title="Remover">×</button>
-                </td>
-              </tr>`,
-            )
-            .join('')}
-        </tbody>
-      </table>
-    </div>`
-
-  el('u-criar').onclick = async () => {
-    try {
-      await api('/admin/usuarios', {
-        method: 'POST',
-        body: {
-          nome: el('u-nome').value,
-          email: el('u-email').value,
-          senha: el('u-senha').value,
-          papel: el('u-papel').value,
-        },
-      })
-      await viewProfessores()
-      avisar('Usuário criado.')
-    } catch (e) {
-      avisar(e.message, 'erro')
-    }
-  }
-
-  document.querySelectorAll('[data-senha]').forEach((b) => {
-    b.onclick = async () => {
-      const senha = prompt('Nova senha para este usuário (mínimo 6 caracteres):')
-      if (!senha) return
-      try {
-        await api(`/admin/usuarios/${b.dataset.senha}`, { method: 'PUT', body: { senha } })
-        avisar('Senha redefinida.')
-      } catch (e) {
-        avisar(e.message, 'erro')
-      }
-    }
-  })
-
-  document.querySelectorAll('[data-apagar]').forEach((b) => {
-    b.onclick = async () => {
-      if (!confirm('Remover este usuário? As turmas dele ficam sem professor.')) return
-      try {
-        await api(`/admin/usuarios/${b.dataset.apagar}`, { method: 'DELETE' })
-        await viewProfessores()
-        avisar('Usuário removido.')
-      } catch (e) {
-        avisar(e.message, 'erro')
-      }
-    }
-  })
-}
-
 /* -------------------------------- ensalamento ------------------------------- */
 
 let diaSelecionado = 'SEGUNDA'
@@ -426,13 +334,13 @@ async function viewImportar() {
         próprio professor preencher ao entrar.
       </p>
 
-      <textarea id="i-texto" style="min-height:170px" placeholder="Yago Chamoun; yago.chamoun@soulasalle.com.br; lasalle2026
-Marina Ribeiro; marina.ribeiro@soulasalle.com.br
-Paula Nunes; paula.nunes@soulasalle.com.br"></textarea>
+      <textarea id="i-texto" style="min-height:170px" placeholder="Ana Paula Moreira; ana.moreira@soulasalle.com.br
+Ricardo Teixeira; ricardo.teixeira@soulasalle.com.br
+Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
 
       <div class="grade g2" style="margin-top:14px">
         <label class="campo" style="margin:0"><span>Senha padrão (quando a coluna vier vazia)</span>
-          <input id="i-senha" value="lasalle2026" />
+          <input id="i-senha" value="000000" />
         </label>
         <div style="display:flex;align-items:flex-end;gap:10px">
           <button class="secundaria" id="i-conferir" style="flex:1">Conferir</button>
@@ -558,7 +466,7 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
             ? `<table>
                 <thead><tr>
                   <th style="width:190px">Professor</th><th style="width:230px">E-mail</th>
-                  <th style="width:110px">Senha</th><th>Disciplinas</th><th style="width:90px"></th>
+                  <th style="width:110px">Senha</th><th>Disciplinas</th><th style="width:190px"></th>
                 </tr></thead>
                 <tbody>
                   ${professores
@@ -573,9 +481,13 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
                           <td class="texto-2 pequeno">${esc(p.email)}</td>
                           <td class="texto-2 pequeno mono">${senha ? esc(senha) : '<span class="texto-3">—</span>'}</td>
                           <td style="line-height:2">${resumo(p)}</td>
-                          <td><button class="secundaria" data-editar="${p.id}" style="padding:5px 12px">
-                            ${aberto ? 'fechar' : 'editar'}
-                          </button></td>
+                          <td style="text-align:right;white-space:nowrap">
+                            <button class="secundaria" data-editar="${p.id}" style="padding:5px 12px">
+                              ${aberto ? 'fechar' : 'editar'}
+                            </button>
+                            <button class="secundaria" data-senha="${p.id}" style="padding:5px 10px;font-size:12px">senha</button>
+                            <button class="mini" data-apagar="${p.id}" title="Remover professor">×</button>
+                          </td>
                         </tr>
                         ${aberto ? `<tr><td colspan="5" id="ed-corpo-${p.id}" style="padding-top:0"></td></tr>` : ''}`
                     })
@@ -590,6 +502,32 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
       b.onclick = () => {
         abertoId = abertoId === b.dataset.editar ? null : b.dataset.editar
         desenha()
+      }
+    })
+
+    document.querySelectorAll('[data-senha]').forEach((b) => {
+      b.onclick = async () => {
+        const senha = prompt('Nova senha para este professor (mínimo 6 caracteres):')
+        if (!senha) return
+        try {
+          await api(`/admin/usuarios/${b.dataset.senha}`, { method: 'PUT', body: { senha } })
+          avisar('Senha redefinida.')
+        } catch (e) {
+          avisar(e.message, 'erro')
+        }
+      }
+    })
+
+    document.querySelectorAll('[data-apagar]').forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm('Remover este professor? As disciplinas dele ficam sem dono.')) return
+        try {
+          await api(`/admin/usuarios/${b.dataset.apagar}`, { method: 'DELETE' })
+          await montaGradeAtribuicao(alvoId, senhasRecentes)
+          avisar('Professor removido.')
+        } catch (e) {
+          avisar(e.message, 'erro')
+        }
       }
     })
 
