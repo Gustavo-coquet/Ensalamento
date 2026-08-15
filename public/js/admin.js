@@ -75,38 +75,15 @@ async function viewPainel() {
 /* ---------------------------------- turmas ---------------------------------- */
 
 async function viewAdminTurmas() {
-  const [{ turmas }, { disciplinas }, { usuarios }] = await Promise.all([
-    api('/turmas'),
-    api('/admin/disciplinas'),
-    api('/admin/usuarios'),
-  ])
-
-  const professores = usuarios.filter((u) => u.papel === 'PROFESSOR' || u.papel === 'ADMIN')
+  const { turmas } = await api('/turmas')
 
   el('conteudo').innerHTML = `
     <div class="rotulo-secao">Turmas</div>
     <h2 class="titulo">${turmas.length} turma${turmas.length === 1 ? '' : 's'} cadastrada${turmas.length === 1 ? '' : 's'}</h2>
-
-    <div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
-      <div class="rotulo-secao" style="margin-bottom:14px">Nova turma</div>
-      <div class="grade g2">
-        <label class="campo"><span>Disciplina</span>
-          <select id="n-disciplina">
-            ${disciplinas.map((d) => `<option value="${d.id}">${d.numero} — ${esc(d.nome)}</option>`).join('')}
-          </select>
-        </label>
-        <label class="campo"><span>Professor</span>
-          <select id="n-professor">
-            <option value="">— definir depois —</option>
-            ${professores.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}
-          </select>
-        </label>
-        <label class="campo"><span>Curso</span>${selectCursos('CICLO_BASICO', 'id="n-curso"')}</label>
-        <label class="campo"><span>Dia da prova</span>${selectDias('', 'id="n-dia"')}</label>
-        <label class="campo"><span>Turno</span>${selectTurnos('NOTURNO', 'id="n-turno"')}</label>
-      </div>
-      <button class="acao" id="n-criar">+ Criar turma</button>
-    </div>
+    <p class="pequeno texto-3" style="margin:-10px 0 20px">
+      As turmas nascem quando um professor escolhe as disciplinas dele — em
+      <em>Cadastro em lote</em> você faz isso por ele, se precisar.
+    </p>
 
     ${
       turmas.length
@@ -141,27 +118,8 @@ async function viewAdminTurmas() {
               </tbody>
             </table>
           </div>`
-        : '<div class="cartao cantos"><div class="canto"></div><div class="vazio">Nenhuma turma ainda. Crie a primeira acima.</div></div>'
+        : '<div class="cartao cantos"><div class="canto"></div><div class="vazio">Nenhuma turma ainda — nenhum professor escolheu disciplinas.</div></div>'
     }`
-
-  el('n-criar').onclick = async () => {
-    try {
-      await api('/admin/turmas', {
-        method: 'POST',
-        body: {
-          disciplinaId: el('n-disciplina').value,
-          professorId: el('n-professor').value || null,
-          curso: el('n-curso').value,
-          diaSemana: el('n-dia').value || null,
-          turno: el('n-turno').value,
-        },
-      })
-      await viewAdminTurmas()
-      avisar('Turma criada.')
-    } catch (e) {
-      avisar(e.message, 'erro')
-    }
-  }
 
   document.querySelectorAll('[data-abrir]').forEach((tr) => {
     tr.onclick = (ev) => {
