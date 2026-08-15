@@ -1,5 +1,5 @@
 import { q, transacao } from './db'
-import type { Dia } from './texto'
+import type { Dia, Turno } from './texto'
 
 export type AlunoEnsalado = {
   alunoId: string
@@ -25,8 +25,11 @@ export function calcularTamanhos(total: number, capacidade: number): number[] {
   return Array.from({ length: salas }, (_, i) => base + (i < extras ? 1 : 0))
 }
 
-/** Alunos elegíveis do dia (turmas com ensalar = true), já em ordem alfabética. */
-export async function alunosDoDia(dia: Dia): Promise<AlunoEnsalado[]> {
+/**
+ * Alunos elegíveis do dia e do turno (turmas com ensalar = true), em ordem alfabética.
+ * O turno importa: quem faz prova de manhã não pode cair na mesma sala de quem faz à noite.
+ */
+export async function alunosDoDia(dia: Dia, turno: Turno): Promise<AlunoEnsalado[]> {
   return (
     await q<any>(
       `SELECT a.id            AS "alunoId",
@@ -40,31 +43,32 @@ export async function alunosDoDia(dia: Dia): Promise<AlunoEnsalado[]> {
          JOIN turma t      ON t.id = a.turma_id
          JOIN disciplina d ON d.id = t.disciplina_id
          LEFT JOIN usuario u ON u.id = t.professor_id
-        WHERE t.dia_semana = $1 AND t.ensalar = TRUE
+        WHERE t.dia_semana = $1 AND t.turno = $2 AND t.ensalar = TRUE
         ORDER BY a.nome_chave ASC, a.matricula ASC`,
-      [dia],
+      [dia, turno],
     )
   ) as AlunoEnsalado[]
 }
 
 /**
- * Gera e grava o ensalamento do dia, substituindo a rodada anterior.
- * Sempre existe no máximo um ensalamento vigente por dia da semana.
+ * Gera e grava o ensalamento do dia + turno, substituindo a rodada anterior.
+ * Sempre existe no máximo um ensalamento vigente por combinação de dia e turno,
+ * então gerar o diurno de terça não mexe no noturno de terça.
  */
-export async function gerarEnsalamento(dia: Dia, capacidade = 15) {
-  const alunos = await alunosDoDia(dia)
+export async function gerarEnsalamento(dia: Dia, turno: Turno, capacidade = 15) {
+  const alunos = await alunosDoDia(dia, turno)
   // sem ninguém para ensalar, não cria uma rodada vazia nem descarta a anterior
   if (!alunos.length) return null
 
   const tamanhos = calcularTamanhos(alunos.length, capacidade)
 
   await transacao(async (exec) => {
-    await exec('DELETE FROM ensalamento WHERE dia_semana = $1', [dia])
+    await exec('DELETE FROM ensalamento WHERE dia_semana = $1 AND turno = $2', [dia, turno])
 
     const [{ id: ensalamentoId }] = await exec<{ id: string }>(
-      `INSERT INTO ensalamento (dia_semana, capacidade, total_alunos, total_salas)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [dia, capacidade, alunos.length, tamanhos.length],
+      `INSERT INTO ensalamento (dia_semana, turno, capacidade, total_alunos, total_salas)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [dia, turno, capacidade, alunos.length, tamanhos.length],
     )
 
     let indice = 0
@@ -88,7 +92,7 @@ export async function gerarEnsalamento(dia: Dia, capacidade = 15) {
     }
   })
 
-  return carregarEnsalamento(dia)
+  return carregarEnsalamento(dia, turno)
 }
 
 export type SalaMontada = {
@@ -99,13 +103,13 @@ export type SalaMontada = {
   resumo: { disciplina: string; quantidade: number }[]
 }
 
-/** Lê o ensalamento vigente do dia e monta as duas visões + o resumo por disciplina. */
-export async function carregarEnsalamento(dia: Dia) {
+/** Lê o ensalamento vigente do dia + turno e monta as duas visões + o resumo por disciplina. */
+export async function carregarEnsalamento(dia: Dia, turno: Turno) {
   const cabecalho = (
     await q<any>(
-      `SELECT id, dia_semana, capacidade, total_alunos, total_salas, criado_em
-         FROM ensalamento WHERE dia_semana = $1 ORDER BY criado_em DESC LIMIT 1`,
-      [dia],
+      `SELECT id, dia_semana, turno, capacidade, total_alunos, total_salas, criado_em
+         FROM ensalamento WHERE dia_semana = $1 AND turno = $2 ORDER BY criado_em DESC LIMIT 1`,
+      [dia, turno],
     )
   )[0]
 
@@ -175,6 +179,7 @@ export async function carregarEnsalamento(dia: Dia) {
   return {
     id: cabecalho.id,
     diaSemana: cabecalho.dia_semana as Dia,
+    turno: cabecalho.turno as Turno,
     capacidade: cabecalho.capacidade,
     totalAlunos: cabecalho.total_alunos,
     totalSalas: cabecalho.total_salas,

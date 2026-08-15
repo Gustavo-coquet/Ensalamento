@@ -1,7 +1,15 @@
 import { Router } from 'express'
 import { q, q1 } from '../lib/db'
 import { exigeLogin, turmaPermitida } from '../lib/auth'
-import { chaveNome, normalizaNome, normalizaGabarito, CURSOS, DIAS, QTD_QUESTOES } from '../lib/texto'
+import {
+  chaveNome,
+  normalizaNome,
+  normalizaGabarito,
+  validaTurno,
+  CURSOS,
+  DIAS,
+  QTD_QUESTOES,
+} from '../lib/texto'
 
 export const rotasTurmas = Router()
 rotasTurmas.use(exigeLogin)
@@ -79,12 +87,14 @@ rotasTurmas.put('/:id', async (req, res) => {
   if (!CURSOS.includes(curso as any)) return res.status(400).json({ erro: 'Curso inválido' })
 
   const ensalar = typeof req.body?.ensalar === 'boolean' ? req.body.ensalar : turma.ensalar
-  const turno = req.body?.turno ? String(req.body.turno).trim().toUpperCase() : turma.turno
+
+  const turno = req.body?.turno ? validaTurno(req.body.turno) : turma.turno
+  if (!turno) return res.status(400).json({ erro: 'Turno inválido' })
 
   const [atualizada] = await q<any>(
     `UPDATE turma SET dia_semana = $1, curso = $2, ensalar = $3, turno = $4, atualizado_em = now()
       WHERE id = $5 RETURNING id, dia_semana, curso, ensalar, turno`,
-    [dia, curso, ensalar, turno || 'NOTURNO', turma.id],
+    [dia, curso, ensalar, turno, turma.id],
   )
 
   res.json({ ok: true, turma: atualizada })

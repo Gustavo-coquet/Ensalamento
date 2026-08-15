@@ -52,12 +52,14 @@ CREATE INDEX IF NOT EXISTS aluno_chave_idx ON aluno (nome_chave);
 CREATE TABLE IF NOT EXISTS ensalamento (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dia_semana   TEXT NOT NULL,
+  turno        TEXT NOT NULL DEFAULT 'NOTURNO',
   capacidade   INT  NOT NULL DEFAULT 15,
   total_alunos INT  NOT NULL DEFAULT 0,
   total_salas  INT  NOT NULL DEFAULT 0,
   criado_em    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS ensalamento_dia_idx ON ensalamento (dia_semana);
+ALTER TABLE ensalamento ADD COLUMN IF NOT EXISTS turno TEXT NOT NULL DEFAULT 'NOTURNO';
+CREATE INDEX IF NOT EXISTS ensalamento_dia_idx ON ensalamento (dia_semana, turno);
 
 CREATE TABLE IF NOT EXISTS sala (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -75,6 +77,22 @@ CREATE TABLE IF NOT EXISTS sala_aluno (
   UNIQUE (sala_id, aluno_id)
 );
 CREATE INDEX IF NOT EXISTS sala_aluno_sala_idx ON sala_aluno (sala_id);
+
+/* --- turno vira uma lista fechada (DIURNO/NOTURNO) em vez de texto livre --- */
+
+UPDATE turma
+   SET turno = CASE
+                 WHEN upper(btrim(turno)) IN ('NOTURNO', 'NOITE', '') THEN 'NOTURNO'
+                 WHEN turno IS NULL THEN 'NOTURNO'
+                 ELSE 'DIURNO'
+               END
+ WHERE turno IS NULL OR turno NOT IN ('DIURNO', 'NOTURNO');
+
+ALTER TABLE turma DROP CONSTRAINT IF EXISTS turma_turno_check;
+ALTER TABLE turma ADD  CONSTRAINT turma_turno_check CHECK (turno IN ('DIURNO','NOTURNO'));
+
+/* Salas geradas antes da separação por turno misturavam os dois — descarta. */
+DELETE FROM ensalamento WHERE turno IS NULL OR turno NOT IN ('DIURNO','NOTURNO');
 `
 
 export async function migrar() {

@@ -31,27 +31,30 @@ async function viewPainel() {
     }
 
     <div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
-      <div class="rotulo-secao" style="margin-bottom:14px">Distribuição por dia</div>
+      <div class="rotulo-secao" style="margin-bottom:14px">Distribuição por dia e turno</div>
       <table>
-        <thead><tr><th>Dia</th><th>Turmas</th><th>Na mistura</th><th>Alunos</th><th>Salas previstas</th><th>Situação</th></tr></thead>
+        <thead><tr><th>Dia</th><th>Turno</th><th>Turmas</th><th>Na mistura</th><th>Alunos</th><th>Salas previstas</th><th>Situação</th></tr></thead>
         <tbody>
           ${d.porDia
+            .filter((linha) => linha.turmas > 0)
             .map((linha) => {
-              const gerado = d.ensalamentos.find((e) => e.dia === linha.dia)
+              const gerado = d.ensalamentos.find((e) => e.dia === linha.dia && e.turno === linha.turno)
               return `<tr>
                 <td><strong>${esc(linha.rotulo)}</strong></td>
+                <td class="texto-2 pequeno">${esc(linha.rotuloTurno)}</td>
                 <td>${linha.turmas}</td>
                 <td>${linha.turmasEnsaladas}</td>
                 <td>${linha.alunos}</td>
                 <td class="texto-2">${linha.salasPrevistas || '—'}</td>
                 <td>${
                   gerado
-                    ? `<span class="pill ok">${gerado.totalSalas} salas geradas</span>`
+                    ? `<span class="pill ok">${gerado.totalSalas} sala${gerado.totalSalas === 1 ? '' : 's'} gerada${gerado.totalSalas === 1 ? '' : 's'}</span>`
                     : '<span class="pill neutro">não gerado</span>'
                 }</td>
               </tr>`
             })
-            .join('')}
+            .join('') ||
+            '<tr><td colspan="7" class="texto-3">Nenhuma turma com dia definido ainda.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -100,6 +103,7 @@ async function viewAdminTurmas() {
         </label>
         <label class="campo"><span>Curso</span>${selectCursos('CICLO_BASICO', 'id="n-curso"')}</label>
         <label class="campo"><span>Dia da prova</span>${selectDias('', 'id="n-dia"')}</label>
+        <label class="campo"><span>Turno</span>${selectTurnos('NOTURNO', 'id="n-turno"')}</label>
       </div>
       <button class="acao" id="n-criar">+ Criar turma</button>
     </div>
@@ -110,7 +114,7 @@ async function viewAdminTurmas() {
             <table>
               <thead><tr>
                 <th style="width:40px">Nº</th><th>Disciplina</th><th>Professor</th>
-                <th>Curso</th><th>Dia</th><th style="width:70px">Alunos</th>
+                <th>Curso</th><th>Dia</th><th>Turno</th><th style="width:70px">Alunos</th>
                 <th>Situação</th><th style="width:44px"></th>
               </tr></thead>
               <tbody>
@@ -127,6 +131,7 @@ async function viewAdminTurmas() {
                       <td class="texto-2">${t.professor ? esc(t.professor.nome) : '<span class="pill alerta">sem professor</span>'}</td>
                       <td class="texto-2 pequeno">${esc(ROTULO_CURSO[t.curso] || t.curso)}</td>
                       <td class="texto-2 pequeno">${t.diaSemana ? esc(ROTULO_DIA[t.diaSemana]) : '—'}</td>
+                      <td class="texto-2 pequeno">${esc(ROTULO_TURNO[t.turno] || t.turno)}</td>
                       <td>${t.totalAlunos}</td>
                       <td style="display:flex;gap:4px;flex-wrap:wrap">${marcas.join('')}</td>
                       <td><button class="mini" data-excluir="${t.id}" title="Excluir turma">×</button></td>
@@ -148,6 +153,7 @@ async function viewAdminTurmas() {
           professorId: el('n-professor').value || null,
           curso: el('n-curso').value,
           diaSemana: el('n-dia').value || null,
+          turno: el('n-turno').value,
         },
       })
       await viewAdminTurmas()
@@ -270,23 +276,26 @@ async function viewProfessores() {
 /* -------------------------------- ensalamento ------------------------------- */
 
 let diaSelecionado = 'SEGUNDA'
+let turnoSelecionado = 'NOTURNO'
 let ordenacaoSalas = 'alfabetica'
 
 async function viewSalas() {
   const painel = await api('/admin/dashboard')
-  const info = painel.porDia.find((p) => p.dia === diaSelecionado)
+  const info = painel.porDia.find((p) => p.dia === diaSelecionado && p.turno === turnoSelecionado)
 
   el('conteudo').innerHTML = `
     <div class="rotulo-secao nao-imprime">Ensalamento</div>
     <h2 class="titulo nao-imprime">Gerar salas</h2>
 
     <div class="cartao cantos nao-imprime" style="margin-bottom:22px"><div class="canto"></div>
-      <div class="grade g3" style="margin-bottom:16px">
+      <div class="grade g4" style="margin-bottom:16px">
         <label class="campo" style="margin:0"><span>Dia da prova</span>
-          ${DIAS.map(() => '').join('')}
           <select id="e-dia">
             ${DIAS.map((d) => `<option value="${d}"${d === diaSelecionado ? ' selected' : ''}>${ROTULO_DIA[d]}</option>`).join('')}
           </select>
+        </label>
+        <label class="campo" style="margin:0"><span>Turno</span>
+          ${selectTurnos(turnoSelecionado, 'id="e-turno"')}
         </label>
         <label class="campo" style="margin:0"><span>Alunos por sala (máximo)</span>
           <input id="e-cap" type="number" min="2" max="60" value="15" />
@@ -296,8 +305,9 @@ async function viewSalas() {
         </div>
       </div>
       <p class="pequeno texto-3" id="e-info">
-        ${info.alunos} aluno(s) na mistura de ${esc(info.rotulo)} · ${info.turmasEnsaladas} turma(s).
-        As salas ficam o mais equilibradas possível e os alunos entram em ordem alfabética.
+        ${info.alunos} aluno(s) na mistura de ${esc(info.rotulo)} — ${esc(info.rotuloTurno.toLowerCase())}
+        · ${info.turmasEnsaladas} turma(s).
+        Cada turno é ensalado separado, então ninguém do diurno cai numa sala do noturno.
       </p>
     </div>
 
@@ -308,10 +318,16 @@ async function viewSalas() {
     viewSalas()
   }
 
+  el('e-turno').onchange = () => {
+    turnoSelecionado = el('e-turno').value
+    viewSalas()
+  }
+
   el('e-gerar').onclick = async () => {
-    if (!confirm(`Gerar as salas de ${ROTULO_DIA[diaSelecionado]}? Isso substitui a distribuição anterior desse dia.`)) return
+    const alvo = `${ROTULO_DIA[diaSelecionado]} — ${ROTULO_TURNO[turnoSelecionado].toLowerCase()}`
+    if (!confirm(`Gerar as salas de ${alvo}? Isso substitui a distribuição anterior desse dia e turno.`)) return
     try {
-      const r = await api(`/admin/ensalamento/${diaSelecionado}`, {
+      const r = await api(`/admin/ensalamento/${diaSelecionado}/${turnoSelecionado}`, {
         method: 'POST',
         body: { capacidade: Number(el('e-cap').value) || 15 },
       })
@@ -323,11 +339,11 @@ async function viewSalas() {
   }
 
   try {
-    const r = await api(`/admin/ensalamento/${diaSelecionado}`)
+    const r = await api(`/admin/ensalamento/${diaSelecionado}/${turnoSelecionado}`)
     desenhaSalas(r.ensalamento)
   } catch {
     el('e-resultado').innerHTML =
-      '<div class="cartao cantos"><div class="canto"></div><div class="vazio">Nenhuma sala gerada para este dia ainda.</div></div>'
+      '<div class="cartao cantos"><div class="canto"></div><div class="vazio">Nenhuma sala gerada para este dia e turno ainda.</div></div>'
   }
 }
 
@@ -366,7 +382,7 @@ function desenhaSalas(ensalamento) {
     <div class="cartao cantos" style="margin-bottom:18px"><div class="canto"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
         <div>
-          <div class="rotulo-secao">${esc(ROTULO_DIA[ensalamento.diaSemana])}</div>
+          <div class="rotulo-secao">${esc(ROTULO_DIA[ensalamento.diaSemana])} — ${esc(ROTULO_TURNO[ensalamento.turno] || ensalamento.turno)}</div>
           <h3 style="margin:0">${ensalamento.totalSalas} salas · ${ensalamento.totalAlunos} alunos</h3>
           <p class="pequeno texto-3" style="margin-top:4px">
             Gerado em ${new Date(ensalamento.criadoEm).toLocaleString('pt-BR')}
@@ -376,7 +392,7 @@ function desenhaSalas(ensalamento) {
           <button class="secundaria" id="o-alfa" ${!porDisciplina ? 'style="border-color:var(--acento)"' : ''}>Ordem alfabética</button>
           <button class="secundaria" id="o-disc" ${porDisciplina ? 'style="border-color:var(--acento)"' : ''}>Por disciplina</button>
           <button class="secundaria" onclick="window.print()">Imprimir</button>
-          <button class="secundaria" onclick="baixar('/admin/export/salas/${ensalamento.diaSemana}')">CSV</button>
+          <button class="secundaria" onclick="baixar('/admin/export/salas/${ensalamento.diaSemana}/${ensalamento.turno}')">CSV</button>
         </div>
       </div>
     </div>

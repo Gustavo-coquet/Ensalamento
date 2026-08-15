@@ -16,7 +16,7 @@ navegador.
 **Professor**
 
 - vê apenas a(s) disciplina(s) vinculada(s) ao usuário dele;
-- define o dia da prova, o curso e o turno;
+- define o dia da prova, o curso e o turno (diurno ou noturno);
 - marca se a turma **entra na mistura de salas** — se desmarcar, os alunos continuam
   no resumo e no gabarito (para o leitor de cartão-resposta), mas fazem a prova na
   própria sala;
@@ -37,10 +37,12 @@ navegador.
 
 ### Como as salas são montadas
 
-Todos os alunos das turmas daquele dia marcadas como "na mistura" entram numa única
-lista ordenada por nome (ignorando acentos e maiúsculas). O sistema calcula o menor
-número de salas que respeita a lotação e distribui em fatias sequenciais, deixando as
-salas com no máximo 1 aluno de diferença entre si.
+A unidade de ensalamento é **dia + turno**: o diurno de terça e o noturno de terça são
+gerados separadamente e nunca se misturam. Dentro de cada combinação, todos os alunos
+das turmas marcadas como "na mistura" entram numa única lista ordenada por nome
+(ignorando acentos e maiúsculas). O sistema calcula o menor número de salas que respeita
+a lotação e distribui em fatias sequenciais, deixando as salas com no máximo 1 aluno de
+diferença entre si.
 
 > 205 alunos com lotação 15 → 14 salas: 9 com 15 alunos e 5 com 14.
 
@@ -153,5 +155,3 @@ ensalamento/
   e as estatísticas por questão.
 - Etiquetas/PDF por sala para colar na porta no dia da prova.
 - Registro de quem alterou o quê, para auditar mudanças de última hora.
-
-

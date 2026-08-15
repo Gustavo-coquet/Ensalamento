@@ -29,6 +29,7 @@ async function viewMinhasTurmas() {
         <h3 style="margin-bottom:8px">${esc(t.disciplina)}</h3>
         <div class="pequeno texto-3" style="margin-bottom:12px">
           ${t.diaSemana ? esc(ROTULO_DIA[t.diaSemana]) : 'dia não definido'}
+          · ${esc(ROTULO_TURNO[t.turno] || t.turno)}
           · ${t.totalAlunos} aluno${t.totalAlunos === 1 ? '' : 's'}
           · ${t.ensalar ? 'entra na mistura' : 'fora da mistura'}
         </div>
@@ -62,9 +63,7 @@ async function viewTurma(turmaId) {
 
         <label class="campo"><span>Dia da prova</span>${selectDias(turma.diaSemana, 'id="f-dia"')}</label>
         <label class="campo"><span>Curso</span>${selectCursos(turma.curso, 'id="f-curso"')}</label>
-        <label class="campo"><span>Turno</span>
-          <input id="f-turno" value="${esc(turma.turno)}" />
-        </label>
+        <label class="campo"><span>Turno</span>${selectTurnos(turma.turno, 'id="f-turno"')}</label>
 
         <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;margin:16px 0">
           <input type="checkbox" id="f-ensalar" ${turma.ensalar ? 'checked' : ''} style="width:auto;margin-top:4px" />

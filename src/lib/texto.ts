@@ -19,6 +19,9 @@ export type Dia = (typeof DIAS)[number]
 export const CURSOS = ['CICLO_BASICO', 'ENG_PRODUCAO', 'ENG_CIVIL'] as const
 export type CursoNome = (typeof CURSOS)[number]
 
+export const TURNOS = ['DIURNO', 'NOTURNO'] as const
+export type Turno = (typeof TURNOS)[number]
+
 export const ROTULO_DIA: Record<string, string> = {
   SEGUNDA: 'Segunda-feira',
   TERCA: 'Terça-feira',
@@ -31,6 +34,28 @@ export const ROTULO_CURSO: Record<string, string> = {
   CICLO_BASICO: 'Eng. Ciclo Básico',
   ENG_PRODUCAO: 'Eng. de Produção',
   ENG_CIVIL: 'Eng. Civil',
+}
+
+export const ROTULO_TURNO: Record<string, string> = {
+  DIURNO: 'Diurno',
+  NOTURNO: 'Noturno',
+}
+
+/**
+ * Aceita o que vier (inclusive os textos livres antigos: MATUTINO, TARDE, MANHÃ…)
+ * e devolve sempre DIURNO ou NOTURNO. Na dúvida, NOTURNO — que era o padrão.
+ */
+export function normalizaTurno(entrada: unknown): Turno {
+  const bruto = chaveNome(String(entrada ?? ''))
+  if (bruto === 'NOTURNO' || bruto === 'NOITE') return 'NOTURNO'
+  if (bruto) return 'DIURNO'
+  return 'NOTURNO'
+}
+
+/** Só aceita exatamente DIURNO ou NOTURNO — usado para validar o que vem da tela. */
+export function validaTurno(entrada: unknown): Turno | null {
+  const valor = String(entrada ?? '').trim().toUpperCase()
+  return (TURNOS as readonly string[]).includes(valor) ? (valor as Turno) : null
 }
 
 export const ALTERNATIVAS = ['A', 'B', 'C', 'D', 'E'] as const

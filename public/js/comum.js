@@ -16,6 +16,13 @@ const ROTULO_CURSO = {
   ENG_CIVIL: 'Eng. Civil',
 }
 
+const TURNOS = ['DIURNO', 'NOTURNO']
+
+const ROTULO_TURNO = {
+  DIURNO: 'Diurno',
+  NOTURNO: 'Noturno',
+}
+
 const ALTERNATIVAS = ['A', 'B', 'C', 'D', 'E']
 
 async function api(caminho, opcoes = {}) {
@@ -64,6 +71,13 @@ function selectDias(valorAtual, extra = '') {
 function selectCursos(valorAtual, extra = '') {
   const opcoes = Object.entries(ROTULO_CURSO).map(
     ([v, r]) => `<option value="${v}"${valorAtual === v ? ' selected' : ''}>${r}</option>`,
+  )
+  return `<select ${extra}>${opcoes.join('')}</select>`
+}
+
+function selectTurnos(valorAtual, extra = '') {
+  const opcoes = TURNOS.map(
+    (t) => `<option value="${t}"${valorAtual === t ? ' selected' : ''}>${ROTULO_TURNO[t]}</option>`,
   )
   return `<select ${extra}>${opcoes.join('')}</select>`
 }

@@ -7,9 +7,12 @@ import { carregarEnsalamento, gerarEnsalamento } from '../lib/ensalamento'
 import {
   CURSOS,
   DIAS,
+  TURNOS,
   ROTULO_CURSO,
   ROTULO_DIA,
+  ROTULO_TURNO,
   normalizaGabarito,
+  validaTurno,
   QTD_QUESTOES,
   type Dia,
 } from '../lib/texto'
@@ -26,29 +29,34 @@ function validaDia(valor: string): Dia | null {
 
 rotasAdmin.get('/dashboard', async (_req, res) => {
   const turmas = await q<any>(
-    `SELECT t.id, t.curso, t.dia_semana, t.ensalar, t.gabarito, t.professor_id,
+    `SELECT t.id, t.curso, t.dia_semana, t.turno, t.ensalar, t.gabarito, t.professor_id,
             (SELECT COUNT(*)::int FROM aluno a WHERE a.turma_id = t.id) AS total_alunos
        FROM turma t`,
   )
 
-  const porDia = DIAS.map((dia) => {
-    const doDia = turmas.filter((t) => t.dia_semana === dia)
-    const ensaladas = doDia.filter((t) => t.ensalar)
-    const alunos = ensaladas.reduce((s, t) => s + t.total_alunos, 0)
-    return {
-      dia,
-      rotulo: ROTULO_DIA[dia],
-      turmas: doDia.length,
-      turmasEnsaladas: ensaladas.length,
-      alunos,
-      salasPrevistas: alunos ? Math.ceil(alunos / 15) : 0,
-    }
-  })
+  // uma linha por combinação de dia + turno: é essa a unidade de geração de salas
+  const porDia = DIAS.flatMap((dia) =>
+    TURNOS.map((turno) => {
+      const doBloco = turmas.filter((t) => t.dia_semana === dia && t.turno === turno)
+      const ensaladas = doBloco.filter((t) => t.ensalar)
+      const alunos = ensaladas.reduce((s, t) => s + t.total_alunos, 0)
+      return {
+        dia,
+        turno,
+        rotulo: ROTULO_DIA[dia],
+        rotuloTurno: ROTULO_TURNO[turno],
+        turmas: doBloco.length,
+        turmasEnsaladas: ensaladas.length,
+        alunos,
+        salasPrevistas: alunos ? Math.ceil(alunos / 15) : 0,
+      }
+    }),
+  )
 
   const contagem = async (sql: string) => Number((await q1<{ n: string }>(sql))!.n)
 
   const ensalamentos = await q<any>(
-    'SELECT dia_semana, total_alunos, total_salas, criado_em FROM ensalamento ORDER BY criado_em DESC',
+    'SELECT dia_semana, turno, total_alunos, total_salas, criado_em FROM ensalamento ORDER BY criado_em DESC',
   )
 
   res.json({
@@ -64,7 +72,9 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
     porDia,
     ensalamentos: ensalamentos.map((e) => ({
       dia: e.dia_semana,
+      turno: e.turno,
       rotulo: ROTULO_DIA[e.dia_semana],
+      rotuloTurno: ROTULO_TURNO[e.turno],
       totalAlunos: e.total_alunos,
       totalSalas: e.total_salas,
       criadoEm: e.criado_em,
@@ -148,16 +158,19 @@ rotasAdmin.post('/turmas', async (req, res) => {
   const professorId = req.body?.professorId ? String(req.body.professorId) : null
   const curso = String(req.body?.curso ?? 'CICLO_BASICO')
   const dia = req.body?.diaSemana ? String(req.body.diaSemana) : null
+  const turno = validaTurno(req.body?.turno ?? 'NOTURNO')
 
   if (!(await q1('SELECT id FROM disciplina WHERE id = $1', [disciplinaId]))) {
     return res.status(400).json({ erro: 'Disciplina inválida' })
   }
   if (!(CURSOS as readonly string[]).includes(curso)) return res.status(400).json({ erro: 'Curso inválido' })
   if (dia && !validaDia(dia)) return res.status(400).json({ erro: 'Dia inválido' })
+  if (!turno) return res.status(400).json({ erro: 'Turno inválido' })
 
   const [turma] = await q<any>(
-    `INSERT INTO turma (disciplina_id, professor_id, curso, dia_semana) VALUES ($1,$2,$3,$4) RETURNING id`,
-    [disciplinaId, professorId, curso, dia],
+    `INSERT INTO turma (disciplina_id, professor_id, curso, dia_semana, turno)
+     VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+    [disciplinaId, professorId, curso, dia, turno],
   )
   res.status(201).json({ turma })
 })
@@ -188,33 +201,41 @@ rotasAdmin.post('/limpar-alunos', async (req, res) => {
 
 /* ------------------------------- Ensalamento ------------------------------ */
 
-rotasAdmin.post('/ensalamento/:dia', async (req, res) => {
+rotasAdmin.post('/ensalamento/:dia/:turno', async (req, res) => {
   const dia = validaDia(req.params.dia)
+  const turno = validaTurno(req.params.turno)
   if (!dia) return res.status(400).json({ erro: 'Dia inválido' })
+  if (!turno) return res.status(400).json({ erro: 'Turno inválido' })
 
   const capacidade = Math.max(2, Math.min(60, Number(req.body?.capacidade) || 15))
-  const resultado = await gerarEnsalamento(dia, capacidade)
+  const resultado = await gerarEnsalamento(dia, turno, capacidade)
 
   if (!resultado || resultado.totalAlunos === 0) {
-    return res.status(400).json({ erro: `Nenhum aluno marcado para ensalar em ${ROTULO_DIA[dia]}` })
+    return res.status(400).json({
+      erro: `Nenhum aluno marcado para ensalar em ${ROTULO_DIA[dia]} — ${ROTULO_TURNO[turno].toLowerCase()}`,
+    })
   }
   res.json({ ensalamento: resultado })
 })
 
-rotasAdmin.get('/ensalamento/:dia', async (req, res) => {
+rotasAdmin.get('/ensalamento/:dia/:turno', async (req, res) => {
   const dia = validaDia(req.params.dia)
+  const turno = validaTurno(req.params.turno)
   if (!dia) return res.status(400).json({ erro: 'Dia inválido' })
+  if (!turno) return res.status(400).json({ erro: 'Turno inválido' })
 
-  const resultado = await carregarEnsalamento(dia)
-  if (!resultado) return res.status(404).json({ erro: 'Ainda não há salas geradas para este dia' })
+  const resultado = await carregarEnsalamento(dia, turno)
+  if (!resultado) return res.status(404).json({ erro: 'Ainda não há salas geradas para este dia e turno' })
   res.json({ ensalamento: resultado })
 })
 
-rotasAdmin.delete('/ensalamento/:dia', async (req, res) => {
+rotasAdmin.delete('/ensalamento/:dia/:turno', async (req, res) => {
   const dia = validaDia(req.params.dia)
+  const turno = validaTurno(req.params.turno)
   if (!dia) return res.status(400).json({ erro: 'Dia inválido' })
+  if (!turno) return res.status(400).json({ erro: 'Turno inválido' })
 
-  await q('DELETE FROM ensalamento WHERE dia_semana = $1', [dia])
+  await q('DELETE FROM ensalamento WHERE dia_semana = $1 AND turno = $2', [dia, turno])
   res.json({ ok: true })
 })
 
@@ -260,7 +281,7 @@ rotasAdmin.get('/export/resumo.csv', async (_req, res) => {
 rotasAdmin.get('/export/gabaritos.csv', async (_req, res) => {
   const linhas = await q<any>(
     `SELECT d.numero, d.nome AS disciplina, COALESCE(u.nome,'') AS professor,
-            t.dia_semana, t.curso, t.ensalar, t.gabarito
+            t.dia_semana, t.turno, t.curso, t.ensalar, t.gabarito
        FROM turma t
        JOIN disciplina d ON d.id = t.disciplina_id
        LEFT JOIN usuario u ON u.id = t.professor_id
@@ -271,13 +292,14 @@ rotasAdmin.get('/export/gabaritos.csv', async (_req, res) => {
     res,
     'gabaritos.csv',
     paraCSV(
-      ['Nº', 'DISCIPLINA', 'PROFESSOR', 'CURSO', 'DIA', 'NA MISTURA', ...Array.from({ length: QTD_QUESTOES }, (_, i) => `Q${i + 1}`)],
+      ['Nº', 'DISCIPLINA', 'PROFESSOR', 'CURSO', 'DIA', 'TURNO', 'NA MISTURA', ...Array.from({ length: QTD_QUESTOES }, (_, i) => `Q${i + 1}`)],
       linhas.map((l) => [
         l.numero,
         l.disciplina.toUpperCase(),
         l.professor.toUpperCase(),
         (ROTULO_CURSO[l.curso] ?? l.curso).toUpperCase(),
         l.dia_semana ? ROTULO_DIA[l.dia_semana] : '',
+        (l.turno ?? '').toUpperCase(),
         l.ensalar ? 'SIM' : 'NAO',
         ...normalizaGabarito(l.gabarito),
       ]),
@@ -285,13 +307,15 @@ rotasAdmin.get('/export/gabaritos.csv', async (_req, res) => {
   )
 })
 
-/** Salas de um dia: uma linha por aluno alocado. */
-rotasAdmin.get('/export/salas/:dia', async (req, res) => {
+/** Salas de um dia + turno: uma linha por aluno alocado. */
+rotasAdmin.get('/export/salas/:dia/:turno', async (req, res) => {
   const dia = validaDia(req.params.dia)
+  const turno = validaTurno(req.params.turno)
   if (!dia) return res.status(400).json({ erro: 'Dia inválido' })
+  if (!turno) return res.status(400).json({ erro: 'Turno inválido' })
 
-  const resultado = await carregarEnsalamento(dia)
-  if (!resultado) return res.status(404).json({ erro: 'Ainda não há salas geradas para este dia' })
+  const resultado = await carregarEnsalamento(dia, turno)
+  if (!resultado) return res.status(404).json({ erro: 'Ainda não há salas geradas para este dia e turno' })
 
   const linhas: (string | number)[][] = []
   for (const sala of resultado.salas) {
@@ -311,7 +335,7 @@ rotasAdmin.get('/export/salas/:dia', async (req, res) => {
 
   enviaCSV(
     res,
-    `salas-${dia.toLowerCase()}.csv`,
+    `salas-${dia.toLowerCase()}-${turno.toLowerCase()}.csv`,
     paraCSV(['SALA', 'ORDEM', 'RA', 'CODIGO DE BARRAS', 'NOME', 'DISCIPLINA', 'CURSO', 'PROFESSOR'], linhas),
   )
 })
