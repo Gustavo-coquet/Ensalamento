@@ -409,30 +409,26 @@ async function viewImportar() {
 
   el('conteudo').innerHTML = `
     <div class="rotulo-secao">Cadastro em lote</div>
-    <h2 class="titulo">Professores e disciplinas de uma vez</h2>
+    <h2 class="titulo">Cadastrar professores</h2>
 
     <div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
       <div class="rotulo-secao" style="margin-bottom:6px">Cole a lista</div>
-      <p class="pequeno texto-3" style="margin-bottom:12px">
-        Colunas separadas por <strong>tabulação</strong> (colando direto do Excel),
-        <strong>ponto e vírgula</strong> ou <strong>barra vertical</strong>. Dois formatos,
-        e dá para misturar os dois na mesma lista:
+      <p class="pequeno texto-3" style="margin-bottom:10px">
+        Uma linha por professor, três colunas nesta ordem:<br />
+        <span class="mono">NOME DO PROFESSOR ; E-MAIL ; SENHA</span>
       </p>
       <p class="pequeno texto-3" style="margin-bottom:12px">
-        <span class="mono">PROFESSOR ; E-MAIL ; SENHA</span> — cadastra só a pessoa.
-        Ela entra no sistema e escolhe as próprias disciplinas, dia e turno.<br />
-        <span class="mono">DISCIPLINA ; PROFESSOR ; E-MAIL ; SENHA ; DIA ; TURNO</span> — já deixa
-        tudo pronto. A disciplina pode ser o nome (acento não importa) ou o número dela;
-        dia e turno podem ficar em branco.
-      </p>
-      <p class="pequeno texto-3" style="margin-bottom:12px">
-        Sem senha, entra a senha padrão do campo abaixo. Professor que já existe é
-        reaproveitado e a senha dele não é alterada.
+        Separador: <strong>tabulação</strong> (colando direto do Excel),
+        <strong>ponto e vírgula</strong> ou <strong>barra vertical</strong>.
+        A senha é opcional — sem ela entra a senha padrão do campo abaixo.
+        Professor que já existe é reaproveitado, sem mexer na senha dele.
+        As disciplinas, o dia e o turno ficam para a grade logo abaixo, ou para o
+        próprio professor preencher ao entrar.
       </p>
 
-      <textarea id="i-texto" style="min-height:190px" placeholder="Yago Chamoun; yago.chamoun@soulasalle.com.br; lasalle2026
+      <textarea id="i-texto" style="min-height:170px" placeholder="Yago Chamoun; yago.chamoun@soulasalle.com.br; lasalle2026
 Marina Ribeiro; marina.ribeiro@soulasalle.com.br
-Cálculo Numérico; Paula Nunes; paula.nunes@soulasalle.com.br; ; terça; noturno"></textarea>
+Paula Nunes; paula.nunes@soulasalle.com.br"></textarea>
 
       <div class="grade g2" style="margin-top:14px">
         <label class="campo" style="margin:0"><span>Senha padrão (quando a coluna vier vazia)</span>
@@ -451,9 +447,6 @@ Cálculo Numérico; Paula Nunes; paula.nunes@soulasalle.com.br; ; terça; noturn
 
     <div class="cartao cantos" style="margin-top:22px"><div class="canto"></div>
       <div class="rotulo-secao" style="margin-bottom:10px">Disciplinas cadastradas (${disciplinas.length})</div>
-      <p class="pequeno texto-3" style="margin-bottom:12px">
-        São estes os nomes que o sistema reconhece. Pode usar o número no lugar do nome.
-      </p>
       <div class="grade g3 pequeno texto-2">
         ${disciplinas
           .map((d) => `<div><span class="texto-3 mono">${d.numero}</span> ${esc(d.nome)}</div>`)
@@ -476,8 +469,8 @@ Cálculo Numérico; Paula Nunes; paula.nunes@soulasalle.com.br; ; terça; noturn
         r.linhas.filter((l) => !l.erro).forEach((l) => (senhas[l.email] = l.senha))
         await montaGradeAtribuicao('i-grade', senhas)
         avisar(
-          `${r.resumo.professoresNovos} professor(es) novo(s), ` +
-            `${r.resumo.turmasNovas} turma(s) criada(s), ${r.resumo.turmasAtualizadas} atualizada(s).`,
+          `${r.resumo.professoresNovos} professor(es) cadastrado(s)` +
+            (r.resumo.professoresExistentes ? `, ${r.resumo.professoresExistentes} já existia(m).` : '.'),
         )
       }
     } catch (e) {
@@ -494,169 +487,12 @@ Cálculo Numérico; Paula Nunes; paula.nunes@soulasalle.com.br; ; terça; noturn
   await montaGradeAtribuicao('i-grade')
 }
 
-/* Grade opcional: o administrador pode ir preenchendo dia, turno e disciplinas
-   pelos professores. Nada aqui é obrigatório — o professor faz sozinho se preferir. */
-async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
-  const { professores, disciplinas } = await api('/admin/atribuicao')
-
-  const estado = new Map(
-    professores.map((p) => [
-      p.id,
-      { ids: new Set(p.disciplinaIds), dia: p.diaSemana || '', turno: p.turno || 'NOTURNO', aberto: false, busca: '' },
-    ]),
-  )
-
-  function linhaProfessor(p) {
-    const e = estado.get(p.id)
-    const senha = senhasRecentes[p.email]
-
-    const lista = e.aberto
-      ? `<tr class="nao-imprime"><td colspan="6" style="padding-top:0">
-          <label class="campo" style="max-width:320px"><span>Buscar disciplina</span>
-            <input data-busca="${p.id}" value="${esc(e.busca)}" placeholder="digite parte do nome" />
-          </label>
-          <div class="lista-check">
-            ${disciplinas
-              .filter((d) => !e.busca || chaveSimples(`${d.numero} ${d.nome}`).includes(chaveSimples(e.busca)))
-              .map((d) => {
-                const deOutro = d.professorId && d.professorId !== p.id
-                return `<label class="item-check ${deOutro ? 'ocupada' : ''}">
-                    <input type="checkbox" data-prof="${p.id}" data-id="${d.id}"
-                      ${e.ids.has(d.id) ? 'checked' : ''} ${deOutro ? 'disabled' : ''} />
-                    <span><span class="texto-3 mono">${d.numero}</span> ${esc(d.nome)}
-                    ${deOutro ? `<span class="pill neutro">${esc(d.professorNome)}</span>` : ''}</span>
-                  </label>`
-              })
-              .join('')}
-          </div>
-          <div class="linha-botoes" style="margin-top:12px">
-            <button class="acao" data-salvar="${p.id}">Salvar para ${esc(p.nome.split(' ')[0])}</button>
-            <button class="secundaria" data-fechar="${p.id}">Fechar</button>
-          </div>
-        </td></tr>`
-      : ''
-
-    return `
-      <tr>
-        <td><strong>${esc(p.nome)}</strong>${p.papel === 'ADMIN' ? ' <span class="pill ok">admin</span>' : ''}</td>
-        <td class="texto-2 pequeno">${esc(p.email)}</td>
-        <td class="texto-2 pequeno mono">${senha ? esc(senha) : '<span class="texto-3">—</span>'}</td>
-        <td>${selectDias(e.dia, `data-dia="${p.id}"`)}</td>
-        <td>${selectTurnos(e.turno, `data-turno="${p.id}"`)}</td>
-        <td><button class="secundaria" data-abrir-disc="${p.id}" style="white-space:nowrap">
-          ${e.ids.size} disciplina${e.ids.size === 1 ? '' : 's'} ${e.aberto ? '▲' : '▼'}
-        </button></td>
-      </tr>
-      ${lista}`
-  }
-
-  function desenha() {
-    el(alvoId).innerHTML = `
-      <div class="cartao cantos"><div class="canto"></div>
-        <div class="rotulo-secao" style="margin-bottom:6px">Professores cadastrados (${professores.length})</div>
-        <p class="pequeno texto-3" style="margin-bottom:14px">
-          Opcional: se quiser adiantar o trabalho de alguém, escolha o dia, o turno e as
-          disciplinas dele aqui. Quem não for preenchido faz isso sozinho ao entrar.
-          A senha só aparece para quem você acabou de cadastrar nesta tela.
-        </p>
-        ${
-          professores.length
-            ? `<table>
-                <thead><tr>
-                  <th>Professor</th><th>E-mail</th><th style="width:120px">Senha</th>
-                  <th style="width:170px">Dia da semana</th><th style="width:130px">Turno</th>
-                  <th style="width:150px">Disciplinas</th>
-                </tr></thead>
-                <tbody>${professores.map(linhaProfessor).join('')}</tbody>
-              </table>`
-            : '<div class="vazio">Nenhum professor ainda. Cole a lista acima.</div>'
-        }
-      </div>`
-
-    document.querySelectorAll('[data-abrir-disc]').forEach((b) => {
-      b.onclick = () => {
-        const id = b.dataset.abrirDisc
-        const abrindo = !estado.get(id).aberto
-        estado.forEach((v) => (v.aberto = false))
-        estado.get(id).aberto = abrindo
-        desenha()
-      }
-    })
-
-    document.querySelectorAll('[data-fechar]').forEach((b) => {
-      b.onclick = () => {
-        estado.get(b.dataset.fechar).aberto = false
-        desenha()
-      }
-    })
-
-    document.querySelectorAll('[data-busca]').forEach((i) => {
-      i.oninput = () => {
-        estado.get(i.dataset.busca).busca = i.value
-        desenha()
-        const campo = document.querySelector(`[data-busca="${i.dataset.busca}"]`)
-        if (campo) { campo.focus(); campo.setSelectionRange(campo.value.length, campo.value.length) }
-      }
-    })
-
-    document.querySelectorAll('[data-prof]').forEach((c) => {
-      c.onchange = () => {
-        const e = estado.get(c.dataset.prof)
-        const id = Number(c.dataset.id)
-        c.checked ? e.ids.add(id) : e.ids.delete(id)
-      }
-    })
-
-    document.querySelectorAll('[data-dia]').forEach((s) => {
-      s.onchange = () => (estado.get(s.dataset.dia).dia = s.value)
-    })
-    document.querySelectorAll('[data-turno]').forEach((s) => {
-      s.onchange = () => (estado.get(s.dataset.turno).turno = s.value)
-    })
-
-    document.querySelectorAll('[data-salvar]').forEach((b) => {
-      b.onclick = async () => {
-        const id = b.dataset.salvar
-        const e = estado.get(id)
-        try {
-          const r = await api(`/admin/atribuicao/${id}`, {
-            method: 'POST',
-            body: { disciplinaIds: [...e.ids], diaSemana: e.dia || null, turno: e.turno },
-          })
-          if (r.ocupadas?.length) {
-            avisar(`Já tem dono: ${r.ocupadas.map((o) => `${o.disciplina} (${o.professor})`).join(', ')}`, 'info')
-          }
-          avisar(`${r.vinculadas} disciplina(s) vinculada(s).`)
-          await montaGradeAtribuicao(alvoId, senhasRecentes)
-        } catch (err) {
-          avisar(err.message, 'erro')
-        }
-      }
-    })
-  }
-
-  desenha()
-}
-
 function desenhaImportacao(r) {
-  const marca = (linha) => {
-    if (linha.erro) return `<span class="pill alerta">${esc(linha.erro)}</span>`
-    const partes = []
-    partes.push(
-      linha.acaoProfessor === 'criar'
-        ? '<span class="pill ok">professor novo</span>'
-        : '<span class="pill neutro">professor já existia</span>',
-    )
-    if (!linha.disciplinaId) {
-      partes.push('<span class="pill neutro">ele escolhe as disciplinas</span>')
-    } else {
-      partes.push(
-        linha.acaoTurma === 'criar'
-          ? '<span class="pill ok">turma nova</span>'
-          : '<span class="pill neutro">turma atualizada</span>',
-      )
-    }
-    return partes.join(' ')
+  const marca = (l) => {
+    if (l.erro) return `<span class="pill alerta">${esc(l.erro)}</span>`
+    return l.acao === 'criar'
+      ? '<span class="pill ok">cadastrar</span>'
+      : '<span class="pill neutro">já existe — mantém a senha atual</span>'
   }
 
   el('i-resultado').innerHTML = `
@@ -670,27 +506,114 @@ function desenhaImportacao(r) {
       </h3>
       <table>
         <thead><tr>
-          <th style="width:44px">#</th><th>Professor</th><th>E-mail</th><th>Senha</th>
-          <th>Disciplina</th><th>Dia</th><th>Turno</th><th>Situação</th>
+          <th style="width:44px">#</th><th>Professor</th><th>E-mail</th>
+          <th style="width:130px">Senha</th><th>Situação</th>
         </tr></thead>
         <tbody>
           ${r.linhas
             .map(
               (l) => `<tr>
                 <td class="texto-3">${l.linha}</td>
-                <td class="texto-2">${esc(l.professor)}</td>
+                <td>${esc(l.professor)}</td>
                 <td class="texto-2 pequeno">${esc(l.email)}</td>
                 <td class="texto-2 pequeno mono">${esc(l.senha || '')}</td>
-                <td>${esc(l.disciplinaNome || l.disciplinaTexto || '—')}</td>
-                <td class="texto-2 pequeno">${l.dia ? esc(ROTULO_DIA[l.dia]) : '—'}</td>
-                <td class="texto-2 pequeno">${l.disciplinaId ? esc(ROTULO_TURNO[l.turno] || '—') : '—'}</td>
-                <td style="display:flex;gap:4px;flex-wrap:wrap">${marca(l)}</td>
+                <td>${marca(l)}</td>
               </tr>`,
             )
             .join('')}
         </tbody>
       </table>
     </div>`
+}
+
+/* Grade opcional: o administrador pode preencher as disciplinas de cada professor,
+   cada uma com o seu dia e o seu turno. Nada aqui é obrigatório — o professor faz
+   sozinho ao entrar se ninguém preencher por ele. */
+async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
+  const { professores, disciplinas, maximo } = await api('/admin/atribuicao')
+  let abertoId = null
+
+  function resumo(p) {
+    if (!p.itens.length) return '<span class="texto-3">nenhuma disciplina</span>'
+    return p.itens
+      .map(
+        (i) => `<span class="pill neutro" style="margin:2px 4px 2px 0">${esc(i.disciplina)}
+          <span class="texto-3">${i.dia ? esc(ROTULO_DIA[i.dia].slice(0, 3)) : 'sem dia'}
+          · ${esc((ROTULO_TURNO[i.turno] || '').slice(0, 3))}</span></span>`,
+      )
+      .join('')
+  }
+
+  function desenha() {
+    el(alvoId).innerHTML = `
+      <div class="cartao cantos"><div class="canto"></div>
+        <div class="rotulo-secao" style="margin-bottom:6px">Professores cadastrados (${professores.length})</div>
+        <p class="pequeno texto-3" style="margin-bottom:14px">
+          Opcional: clique em <em>editar</em> para escolher as disciplinas de alguém — cada uma
+          com o próprio dia e turno, até ${maximo} por professor. Quem não for preenchido faz
+          isso sozinho ao entrar. A senha só aparece para quem você acabou de cadastrar acima.
+        </p>
+        ${
+          professores.length
+            ? `<table>
+                <thead><tr>
+                  <th style="width:190px">Professor</th><th style="width:230px">E-mail</th>
+                  <th style="width:110px">Senha</th><th>Disciplinas</th><th style="width:90px"></th>
+                </tr></thead>
+                <tbody>
+                  ${professores
+                    .map((p) => {
+                      const senha = senhasRecentes[p.email]
+                      const aberto = abertoId === p.id
+                      return `
+                        <tr>
+                          <td><strong>${esc(p.nome)}</strong>${
+                            p.papel === 'ADMIN' ? ' <span class="pill ok">admin</span>' : ''
+                          }</td>
+                          <td class="texto-2 pequeno">${esc(p.email)}</td>
+                          <td class="texto-2 pequeno mono">${senha ? esc(senha) : '<span class="texto-3">—</span>'}</td>
+                          <td style="line-height:2">${resumo(p)}</td>
+                          <td><button class="secundaria" data-editar="${p.id}" style="padding:5px 12px">
+                            ${aberto ? 'fechar' : 'editar'}
+                          </button></td>
+                        </tr>
+                        ${aberto ? `<tr><td colspan="5" id="ed-corpo-${p.id}" style="padding-top:0"></td></tr>` : ''}`
+                    })
+                    .join('')}
+                </tbody>
+              </table>`
+            : '<div class="vazio">Nenhum professor ainda. Cole a lista acima.</div>'
+        }
+      </div>`
+
+    document.querySelectorAll('[data-editar]').forEach((b) => {
+      b.onclick = () => {
+        abertoId = abertoId === b.dataset.editar ? null : b.dataset.editar
+        desenha()
+      }
+    })
+
+    if (abertoId) {
+      const p = professores.find((x) => x.id === abertoId)
+      editorDisciplinas({
+        alvo: el(`ed-corpo-${p.id}`),
+        maximo,
+        titulo: `Disciplinas de ${p.nome}`,
+        ajuda:
+          'Cada linha é uma disciplina com o seu próprio dia e turno. O que estiver com outro ' +
+          'professor aparece com o nome dele e não pode ser escolhido.',
+        disciplinas: disciplinas.map((d) => ({
+          ...d,
+          bloqueada: !!d.professorId && d.professorId !== p.id,
+        })),
+        itens: p.itens.map((i) => ({ disciplinaId: i.disciplinaId, dia: i.dia || '', turno: i.turno })),
+        salvar: (itens) => api(`/admin/atribuicao/${p.id}`, { method: 'POST', body: { itens } }),
+        aoTerminar: () => montaGradeAtribuicao(alvoId, senhasRecentes),
+      })
+    }
+  }
+
+  desenha()
 }
 
 /* --------------------------------- manutenção -------------------------------- */

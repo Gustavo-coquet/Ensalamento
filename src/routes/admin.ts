@@ -2,8 +2,14 @@ import { Router, type Response } from 'express'
 import bcrypt from 'bcryptjs'
 import { q, q1, transacao } from '../lib/db'
 import { exigeAdmin } from '../lib/auth'
-import { lerLinhas, acharDisciplina, type Disciplina } from '../lib/importacao'
-import { atribuirDisciplinas, disciplinasComDono } from '../lib/atribuicao'
+import { lerLinhas } from '../lib/importacao'
+import {
+  atribuirDisciplinas,
+  atribuicaoAtual,
+  disciplinasComDono,
+  lerItens,
+  MAX_DISCIPLINAS,
+} from '../lib/atribuicao'
 import { paraCSV } from '../lib/csv'
 import { carregarEnsalamento, gerarEnsalamento } from '../lib/ensalamento'
 import {
@@ -178,9 +184,9 @@ rotasAdmin.post('/turmas', async (req, res) => {
 })
 
 /**
- * Cadastro em lote: uma linha por turma, com disciplina, professor, e-mail e
- * (opcionalmente) senha, dia e turno. Cria o professor se ele ainda não existir,
- * reaproveita se já existir, e liga a disciplina a ele.
+ * Cadastro em lote de professores: uma linha por pessoa, com NOME ; E-MAIL ; SENHA.
+ * Cria quem ainda não existe e reaproveita quem já existe (sem mexer na senha dele).
+ * Disciplinas, dia e turno ficam para a grade de atribuição ou para o próprio professor.
  *
  * Com `modo: 'simular'` nada é gravado — serve para conferir antes de aplicar.
  */
@@ -196,58 +202,25 @@ rotasAdmin.post('/importar', async (req, res) => {
   const linhas = lerLinhas(texto, senhaPadrao)
   if (!linhas.length) return res.status(400).json({ erro: 'Nenhuma linha reconhecida' })
 
-  const disciplinas = await q<Disciplina>('SELECT id, numero, nome FROM disciplina ORDER BY numero')
   const usuarios = await q<any>('SELECT id, email, nome FROM usuario')
-  const turmas = await q<any>('SELECT id, disciplina_id, professor_id FROM turma')
-
   const porEmail = new Map<string, any>(usuarios.map((u) => [String(u.email).toLowerCase(), u]))
-  const porDisciplina = new Map<number, any>(turmas.map((t) => [t.disciplina_id, t]))
 
-  const resultado = linhas.map((l) => {
-    const base = {
-      linha: l.linha,
-      professor: l.professor,
-      email: l.email,
-      senha: l.senha,
-      dia: l.dia,
-      turno: l.turno,
-      disciplinaTexto: l.disciplina,
-      disciplinaId: null as number | null,
-      disciplinaNome: '',
-      acaoProfessor: '' as 'criar' | 'existente' | '',
-      acaoTurma: '' as 'criar' | 'atualizar' | '',
-      erro: l.erro,
-    }
-    if (base.erro) return base
+  const resultado = linhas.map((l) => ({
+    linha: l.linha,
+    professor: l.professor,
+    email: l.email,
+    senha: l.senha,
+    acao: (l.erro ? '' : porEmail.has(l.email) ? 'existente' : 'criar') as 'criar' | 'existente' | '',
+    erro: l.erro,
+  }))
 
-    base.acaoProfessor = porEmail.has(l.email) ? 'existente' : 'criar'
-
-    // linha sem disciplina: cadastra só o professor, ele escolhe as dele depois
-    if (!l.disciplina) return base
-
-    const { achou, ambigua } = acharDisciplina(l.disciplina, disciplinas)
-    if (ambigua) {
-      base.erro = `Disciplina ambígua — pode ser: ${ambigua.slice(0, 3).map((d) => d.nome).join(' / ')}`
-      return base
-    }
-    if (!achou) {
-      base.erro = `Disciplina não encontrada: "${l.disciplina}"`
-      return base
-    }
-
-    base.disciplinaId = achou.id
-    base.disciplinaNome = achou.nome
-    base.acaoTurma = porDisciplina.has(achou.id) ? 'atualizar' : 'criar'
-    return base
-  })
-
-  // duas linhas apontando para a mesma disciplina brigariam entre si
-  const vistas = new Map<number, number>()
+  // o mesmo e-mail duas vezes na lista cadastraria a pessoa uma vez só
+  const vistos = new Map<string, number>()
   for (const r of resultado) {
-    if (r.erro || !r.disciplinaId) continue
-    const antes = vistas.get(r.disciplinaId)
-    if (antes) r.erro = `Disciplina repetida (já apareceu na linha ${antes})`
-    else vistas.set(r.disciplinaId, r.linha)
+    if (r.erro) continue
+    const antes = vistos.get(r.email)
+    if (antes) r.erro = `E-mail repetido (já apareceu na linha ${antes})`
+    else vistos.set(r.email, r.linha)
   }
 
   const validas = resultado.filter((r) => !r.erro)
@@ -255,44 +228,14 @@ rotasAdmin.post('/importar', async (req, res) => {
   if (aplicar && validas.length) {
     await transacao(async (exec) => {
       for (const r of validas) {
-        const linhaOriginal = linhas.find((l) => l.linha === r.linha)!
-
-        let professorId: string
-        const existente = porEmail.get(r.email)
-        if (existente) {
-          professorId = existente.id
-        } else {
-          const hash = await bcrypt.hash(linhaOriginal.senha, 10)
-          const [criado] = await exec<{ id: string }>(
-            `INSERT INTO usuario (nome, email, senha_hash, papel) VALUES ($1,$2,$3,'PROFESSOR')
-             RETURNING id`,
-            [r.professor, r.email, hash],
-          )
-          professorId = criado.id
-          porEmail.set(r.email, { id: professorId, email: r.email, nome: r.professor })
-        }
-
-        // linha só de professor: para por aqui, ele escolhe as disciplinas depois
-        if (!r.disciplinaId) continue
-
-        const turmaExistente = porDisciplina.get(r.disciplinaId)
-        if (turmaExistente) {
-          await exec(
-            `UPDATE turma SET professor_id = $1,
-                              dia_semana = COALESCE($2, dia_semana),
-                              turno = $3,
-                              atualizado_em = now()
-              WHERE id = $4`,
-            [professorId, r.dia, r.turno, turmaExistente.id],
-          )
-        } else {
-          const [nova] = await exec<{ id: string }>(
-            `INSERT INTO turma (disciplina_id, professor_id, dia_semana, turno)
-             VALUES ($1,$2,$3,$4) RETURNING id`,
-            [r.disciplinaId, professorId, r.dia, r.turno],
-          )
-          porDisciplina.set(r.disciplinaId!, { id: nova.id, disciplina_id: r.disciplinaId })
-        }
+        if (porEmail.has(r.email)) continue
+        const hash = await bcrypt.hash(r.senha, 10)
+        const [criado] = await exec<{ id: string }>(
+          `INSERT INTO usuario (nome, email, senha_hash, papel) VALUES ($1,$2,$3,'PROFESSOR')
+           RETURNING id`,
+          [r.professor, r.email, hash],
+        )
+        porEmail.set(r.email, { id: criado.id, email: r.email, nome: r.professor })
       }
     })
   }
@@ -303,43 +246,19 @@ rotasAdmin.post('/importar', async (req, res) => {
       linhas: resultado.length,
       validas: validas.length,
       erros: resultado.length - validas.length,
-      soProfessor: validas.filter((r) => !r.disciplinaId).length,
-      professoresNovos: new Set(validas.filter((r) => r.acaoProfessor === 'criar').map((r) => r.email)).size,
-      turmasNovas: validas.filter((r) => r.acaoTurma === 'criar').length,
-      turmasAtualizadas: validas.filter((r) => r.acaoTurma === 'atualizar').length,
+      professoresNovos: validas.filter((r) => r.acao === 'criar').length,
+      professoresExistentes: validas.filter((r) => r.acao === 'existente').length,
     },
     linhas: resultado,
   })
 })
 
-/** Grade de atribuição: professores + o que cada um já leciona. */
+/** Grade de atribuição: professores + o que cada um já leciona (com dia e turno). */
 rotasAdmin.get('/atribuicao', async (_req, res) => {
-  const professores = await q<any>(
-    `SELECT u.id, u.nome, u.email, u.papel
-       FROM usuario u
-      WHERE u.papel IN ('PROFESSOR','ADMIN')
-      ORDER BY u.papel DESC, u.nome ASC`,
-  )
-
-  const turmas = await q<any>(
-    `SELECT t.professor_id, t.disciplina_id, t.dia_semana, t.turno
-       FROM turma t WHERE t.professor_id IS NOT NULL`,
-  )
-
   res.json({
     disciplinas: await disciplinasComDono(),
-    professores: professores.map((p) => {
-      const dele = turmas.filter((t) => t.professor_id === p.id)
-      return {
-        id: p.id,
-        nome: p.nome,
-        email: p.email,
-        papel: p.papel,
-        disciplinaIds: dele.map((t) => t.disciplina_id),
-        diaSemana: dele.find((t) => t.dia_semana)?.dia_semana ?? '',
-        turno: dele[0]?.turno ?? 'NOTURNO',
-      }
-    }),
+    professores: await atribuicaoAtual(),
+    maximo: MAX_DISCIPLINAS,
   })
 })
 
@@ -350,15 +269,7 @@ rotasAdmin.post('/atribuicao/:professorId', async (req, res) => {
   ])
   if (!professor) return res.status(404).json({ erro: 'Professor não encontrado' })
 
-  const ids = Array.isArray(req.body?.disciplinaIds) ? req.body.disciplinaIds.map(Number) : []
-  const diaBruto = req.body?.diaSemana ? String(req.body.diaSemana) : ''
-  const turnoBruto = req.body?.turno ? String(req.body.turno) : ''
-
-  if (diaBruto && !validaDia(diaBruto)) return res.status(400).json({ erro: 'Dia inválido' })
-  const turno = turnoBruto ? validaTurno(turnoBruto) : null
-  if (turnoBruto && !turno) return res.status(400).json({ erro: 'Turno inválido' })
-
-  const resultado = await atribuirDisciplinas(professor.id, ids, validaDia(diaBruto), turno)
+  const resultado = await atribuirDisciplinas(professor.id, lerItens(req.body?.itens))
   res.json({ ok: true, ...resultado })
 })
 

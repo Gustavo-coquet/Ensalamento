@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { q, q1 } from '../lib/db'
 import { exigeLogin, turmaPermitida } from '../lib/auth'
-import { atribuirDisciplinas, disciplinasComDono } from '../lib/atribuicao'
+import { atribuirDisciplinas, disciplinasComDono, lerItens, MAX_DISCIPLINAS } from '../lib/atribuicao'
 import {
   chaveNome,
   normalizaNome,
@@ -53,25 +53,15 @@ rotasTurmas.get('/', async (req, res) => {
 
 /** Catálogo de disciplinas com o dono atual — para o professor escolher as dele. */
 rotasTurmas.get('/disciplinas/catalogo', async (_req, res) => {
-  res.json({ disciplinas: await disciplinasComDono() })
+  res.json({ disciplinas: await disciplinasComDono(), maximo: MAX_DISCIPLINAS })
 })
 
 /**
- * O professor define sozinho quais disciplinas leciona, com o dia e o turno.
- * A lista enviada é o conjunto final: o que ele desmarcar volta a ficar sem dono.
+ * O professor define sozinho o que leciona: cada disciplina com o seu dia e turno.
+ * A lista enviada é o conjunto final — o que ele tirar volta a ficar sem dono.
  */
 rotasTurmas.post('/minhas-disciplinas', async (req, res) => {
-  const usuario = req.usuario!
-
-  const ids = Array.isArray(req.body?.disciplinaIds) ? req.body.disciplinaIds.map(Number) : []
-  const diaBruto = req.body?.diaSemana ? String(req.body.diaSemana) : ''
-  const turnoBruto = req.body?.turno ? String(req.body.turno) : ''
-
-  if (diaBruto && !DIAS.includes(diaBruto as any)) return res.status(400).json({ erro: 'Dia inválido' })
-  const turno = turnoBruto ? validaTurno(turnoBruto) : null
-  if (turnoBruto && !turno) return res.status(400).json({ erro: 'Turno inválido' })
-
-  const resultado = await atribuirDisciplinas(usuario.id, ids, (diaBruto || null) as any, turno)
+  const resultado = await atribuirDisciplinas(req.usuario!.id, lerItens(req.body?.itens))
   res.json({ ok: true, ...resultado })
 })
 

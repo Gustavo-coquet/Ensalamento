@@ -53,94 +53,146 @@ async function viewMinhasTurmas() {
 }
 
 /**
- * Painel de escolha das disciplinas do próprio professor: busca, marca as dele,
- * mostra quais já são de outra pessoa e aplica dia/turno de uma vez.
+ * Editor das disciplinas de um professor: uma linha por disciplina, cada uma com
+ * o seu dia e o seu turno. Usado tanto pelo professor quanto pelo administrador.
+ *
+ * `salvar(itens)` recebe [{disciplinaId, dia, turno}] e devolve o resultado da API.
  */
+function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTerminar, titulo, ajuda }) {
+  let linhas = itens.map((i) => ({ ...i }))
+
+
+  function desenha() {
+    const usadas = new Set(linhas.map((l) => Number(l.disciplinaId)).filter(Boolean))
+
+    const opcoes = (selecionada) =>
+      ['<option value="">— escolher disciplina —</option>']
+        .concat(
+          disciplinas.map((d) => {
+            const jaNaLista = usadas.has(d.id) && Number(selecionada) !== d.id
+            const deOutro = d.bloqueada && Number(selecionada) !== d.id
+            const marca = deOutro ? ` — ${d.professorNome}` : ''
+            return `<option value="${d.id}" ${Number(selecionada) === d.id ? 'selected' : ''} ${
+              jaNaLista || deOutro ? 'disabled' : ''
+            }>${d.numero} — ${esc(d.nome)}${esc(marca)}</option>`
+          }),
+        )
+        .join('')
+
+    alvo.innerHTML = `
+      <div class="rotulo-secao" style="margin-bottom:6px">${esc(titulo)}</div>
+      <p class="pequeno texto-3" style="margin-bottom:14px">${ajuda}</p>
+
+      <div class="linhas-disc">
+        <div class="cabecalho-disc pequeno texto-3">
+          <span>Disciplina</span><span>Dia da prova</span><span>Turno</span><span></span>
+        </div>
+        ${
+          linhas.length
+            ? linhas
+                .map(
+                  (l, i) => `
+              <div class="linha-disc">
+                <select data-campo="disciplinaId" data-i="${i}">${opcoes(l.disciplinaId)}</select>
+                ${selectDias(l.dia || '', `data-campo="dia" data-i="${i}"`)}
+                ${selectTurnos(l.turno || 'NOTURNO', `data-campo="turno" data-i="${i}"`)}
+                <button class="mini" data-remover-linha="${i}" title="Remover">×</button>
+              </div>`,
+                )
+                .join('')
+            : '<div class="vazio">Nenhuma disciplina ainda.</div>'
+        }
+      </div>
+
+      <div class="linha-botoes" style="margin-top:14px">
+        <button class="secundaria" id="ed-add" ${linhas.length >= maximo ? 'disabled' : ''}>
+          + adicionar disciplina
+        </button>
+        <button class="acao" id="ed-salvar">Salvar</button>
+        <span class="pequeno texto-3">${linhas.length} de ${maximo}</span>
+      </div>`
+
+    alvo.querySelectorAll('[data-campo]').forEach((campo) => {
+      campo.onchange = () => {
+        linhas[Number(campo.dataset.i)][campo.dataset.campo] = campo.value
+        if (campo.dataset.campo === 'disciplinaId') desenha()
+      }
+    })
+
+    alvo.querySelectorAll('[data-remover-linha]').forEach((b) => {
+      b.onclick = () => {
+        linhas.splice(Number(b.dataset.removerLinha), 1)
+        desenha()
+      }
+    })
+
+    el('ed-add').onclick = () => {
+      if (linhas.length >= maximo) return
+      const ultima = linhas[linhas.length - 1]
+      linhas.push({ disciplinaId: '', dia: ultima?.dia || '', turno: ultima?.turno || 'NOTURNO' })
+      desenha()
+    }
+
+    el('ed-salvar').onclick = async () => {
+      const prontas = linhas.filter((l) => Number(l.disciplinaId))
+      const semDisciplina = linhas.length - prontas.length
+      if (semDisciplina) return avisar('Tem linha sem disciplina escolhida.', 'erro')
+
+      try {
+        const r = await salvar(
+          prontas.map((l) => ({ disciplinaId: Number(l.disciplinaId), dia: l.dia || null, turno: l.turno })),
+        )
+        if (r.ocupadas?.length) {
+          avisar(`Já tem dono: ${r.ocupadas.map((o) => `${o.disciplina} (${o.professor})`).join(', ')}`, 'info')
+        } else {
+          avisar(`${r.vinculadas} disciplina(s) salva(s).`)
+        }
+        if (aoTerminar) await aoTerminar()
+      } catch (e) {
+        avisar(e.message, 'erro')
+      }
+    }
+  }
+
+  desenha()
+}
+
+/** Painel do professor: ele mesmo monta a lista das disciplinas que leciona. */
 async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
-  const [{ disciplinas }, { turmas }] = await Promise.all([
+  const [catalogo, { turmas }] = await Promise.all([
     api('/turmas/disciplinas/catalogo'),
     api('/turmas'),
   ])
 
-  const meus = new Set(turmas.map((t) => t.numero))
-  const marcadas = new Set(disciplinas.filter((d) => meus.has(d.numero)).map((d) => d.id))
-  const diaAtual = turmas.find((t) => t.diaSemana)?.diaSemana || ''
-  const turnoAtual = turmas[0]?.turno || 'NOTURNO'
+  const meus = new Map(turmas.map((t) => [t.numero, t]))
 
-  el(alvoId).innerHTML = `
-    <div class="cartao cantos"><div class="canto"></div>
-      <div class="rotulo-secao" style="margin-bottom:6px">Minhas disciplinas</div>
-      <p class="pequeno texto-3" style="margin-bottom:14px">
-        Marque tudo o que você leciona. O dia e o turno escolhidos aqui valem para as
-        disciplinas marcadas — dá para ajustar cada uma depois, individualmente.
-      </p>
+  const disciplinas = catalogo.disciplinas.map((d) => ({
+    ...d,
+    bloqueada: !!d.professorId && !meus.has(d.numero),
+  }))
 
-      <div class="grade g3" style="margin-bottom:14px">
-        <label class="campo" style="margin:0"><span>Dia da prova</span>${selectDias(diaAtual, 'id="d-dia"')}</label>
-        <label class="campo" style="margin:0"><span>Turno</span>${selectTurnos(turnoAtual, 'id="d-turno"')}</label>
-        <label class="campo" style="margin:0"><span>Buscar disciplina</span>
-          <input id="d-busca" placeholder="digite parte do nome" />
-        </label>
-      </div>
-
-      <div id="d-lista" class="lista-check"></div>
-
-      <div class="linha-botoes" style="margin-top:16px">
-        <button class="acao" id="d-salvar">Salvar minhas disciplinas</button>
-        <span class="pequeno texto-3" id="d-contagem"></span>
-      </div>
-    </div>`
-
-  function desenha() {
-    const busca = chaveSimples(el('d-busca').value)
-    const visiveis = disciplinas.filter((d) => !busca || chaveSimples(`${d.numero} ${d.nome}`).includes(busca))
-
-    el('d-lista').innerHTML =
-      visiveis
-        .map((d) => {
-          const deOutro = d.professorId && !marcadas.has(d.id)
-          return `
-            <label class="item-check ${deOutro ? 'ocupada' : ''}">
-              <input type="checkbox" data-id="${d.id}" ${marcadas.has(d.id) ? 'checked' : ''} ${deOutro ? 'disabled' : ''} />
-              <span><span class="texto-3 mono">${d.numero}</span> ${esc(d.nome)}
-              ${deOutro ? `<span class="pill neutro">${esc(d.professorNome)}</span>` : ''}</span>
-            </label>`
-        })
-        .join('') || '<div class="vazio">Nada encontrado.</div>'
-
-    el('d-contagem').textContent = `${marcadas.size} marcada(s)`
-
-    el('d-lista').querySelectorAll('input[type=checkbox]').forEach((c) => {
-      c.onchange = () => {
-        const id = Number(c.dataset.id)
-        c.checked ? marcadas.add(id) : marcadas.delete(id)
-        el('d-contagem').textContent = `${marcadas.size} marcada(s)`
-      }
+  const itens = catalogo.disciplinas
+    .filter((d) => meus.has(d.numero))
+    .map((d) => {
+      const t = meus.get(d.numero)
+      return { disciplinaId: d.id, dia: t.diaSemana || '', turno: t.turno || 'NOTURNO' }
     })
-  }
 
-  el('d-busca').oninput = desenha
-  desenha()
+  el(alvoId).innerHTML = '<div class="cartao cantos"><div class="canto"></div><div id="ed-corpo"></div></div>'
 
-  el('d-salvar').onclick = async () => {
-    try {
-      const r = await api('/turmas/minhas-disciplinas', {
-        method: 'POST',
-        body: {
-          disciplinaIds: [...marcadas],
-          diaSemana: el('d-dia').value || null,
-          turno: el('d-turno').value,
-        },
-      })
-      if (r.ocupadas?.length) {
-        avisar(`Já tem dono: ${r.ocupadas.map((o) => `${o.disciplina} (${o.professor})`).join(', ')}`, 'info')
-      }
-      await aoSalvar()
-      avisar(`${r.vinculadas} disciplina(s) salva(s).`)
-    } catch (e) {
-      avisar(e.message, 'erro')
-    }
-  }
+  editorDisciplinas({
+    alvo: el('ed-corpo'),
+    disciplinas,
+    itens,
+    maximo: catalogo.maximo || 10,
+    titulo: 'Minhas disciplinas',
+    ajuda:
+      'Uma linha por disciplina que você leciona, cada uma com o seu dia e o seu turno. ' +
+      'Disciplina que já é de outro professor aparece com o nome dele e não pode ser escolhida. ' +
+      'Tirar uma linha devolve a disciplina para a lista de disponíveis.',
+    salvar: (itens) => api('/turmas/minhas-disciplinas', { method: 'POST', body: { itens } }),
+    aoTerminar: aoSalvar,
+  })
 }
 
 async function viewTurma(turmaId) {
