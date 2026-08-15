@@ -1,11 +1,13 @@
 import { q, transacao } from './db'
-import { validaTurno, DIAS, type Dia, type Turno } from './texto'
+import { validaTurno, CURSOS, DIAS, type CursoNome, type Dia, type Turno } from './texto'
 
-/** Cada disciplina do professor carrega o próprio dia e turno. */
+/** Cada disciplina do professor carrega o próprio curso, dia, turno e mistura. */
 export type ItemAtribuicao = {
   disciplinaId: number
+  curso: CursoNome
   dia: Dia | null
   turno: Turno
+  ensalar: boolean
 }
 
 export const MAX_DISCIPLINAS = 10
@@ -31,7 +33,18 @@ export function lerItens(entrada: unknown): ItemAtribuicao[] {
     const diaBruto = String((item as any)?.dia ?? '').toUpperCase()
     const dia = (DIAS as readonly string[]).includes(diaBruto) ? (diaBruto as Dia) : null
 
-    saida.push({ disciplinaId, dia, turno: validaTurno((item as any)?.turno) ?? 'NOTURNO' })
+    const cursoBruto = String((item as any)?.curso ?? '').toUpperCase()
+    const curso = (CURSOS as readonly string[]).includes(cursoBruto)
+      ? (cursoBruto as CursoNome)
+      : 'CICLO_BASICO'
+
+    saida.push({
+      disciplinaId,
+      curso,
+      dia,
+      turno: validaTurno((item as any)?.turno) ?? 'NOTURNO',
+      ensalar: (item as any)?.ensalar !== false,
+    })
   }
 
   return saida.slice(0, MAX_DISCIPLINAS)
@@ -91,14 +104,16 @@ export async function atribuirDisciplinas(
       const turma = porDisciplina.get(item.disciplinaId)
       if (turma) {
         await exec(
-          `UPDATE turma SET professor_id = $1, dia_semana = $2, turno = $3, atualizado_em = now()
-            WHERE id = $4`,
-          [professorId, item.dia, item.turno, turma.id],
+          `UPDATE turma SET professor_id = $1, curso = $2, dia_semana = $3, turno = $4,
+                            ensalar = $5, atualizado_em = now()
+            WHERE id = $6`,
+          [professorId, item.curso, item.dia, item.turno, item.ensalar, turma.id],
         )
       } else {
         await exec(
-          `INSERT INTO turma (disciplina_id, professor_id, dia_semana, turno) VALUES ($1,$2,$3,$4)`,
-          [item.disciplinaId, professorId, item.dia, item.turno],
+          `INSERT INTO turma (disciplina_id, professor_id, curso, dia_semana, turno, ensalar)
+           VALUES ($1,$2,$3,$4,$5,$6)`,
+          [item.disciplinaId, professorId, item.curso, item.dia, item.turno, item.ensalar],
         )
         criadas++
       }
@@ -144,7 +159,8 @@ export async function atribuicaoAtual() {
   )
 
   const turmas = await q<any>(
-    `SELECT t.professor_id, t.disciplina_id, t.dia_semana, t.turno, d.nome AS disciplina, d.numero
+    `SELECT t.professor_id, t.disciplina_id, t.curso, t.dia_semana, t.turno, t.ensalar,
+            d.nome AS disciplina, d.numero
        FROM turma t
        JOIN disciplina d ON d.id = t.disciplina_id
       WHERE t.professor_id IS NOT NULL
@@ -163,8 +179,10 @@ export async function atribuicaoAtual() {
         disciplinaId: t.disciplina_id,
         disciplina: t.disciplina,
         numero: t.numero,
+        curso: t.curso,
         dia: t.dia_semana,
         turno: t.turno,
+        ensalar: t.ensalar,
       })
     }
 

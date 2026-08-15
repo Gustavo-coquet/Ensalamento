@@ -85,7 +85,8 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
 
       <div class="linhas-disc">
         <div class="cabecalho-disc pequeno texto-3">
-          <span>Disciplina</span><span>Dia da prova</span><span>Turno</span><span></span>
+          <span>Disciplina</span><span>Curso</span><span>Dia da prova</span>
+          <span>Turno</span><span>Na mistura</span><span></span>
         </div>
         ${
           linhas.length
@@ -94,8 +95,12 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
                   (l, i) => `
               <div class="linha-disc">
                 <select data-campo="disciplinaId" data-i="${i}">${opcoes(l.disciplinaId)}</select>
+                ${selectCursos(l.curso || 'CICLO_BASICO', `data-campo="curso" data-i="${i}"`)}
                 ${selectDias(l.dia || '', `data-campo="dia" data-i="${i}"`)}
                 ${selectTurnos(l.turno || 'NOTURNO', `data-campo="turno" data-i="${i}"`)}
+                <label class="caixa-mistura" title="Desmarque se os alunos fazem a prova na própria sala">
+                  <input type="checkbox" data-campo="ensalar" data-i="${i}" ${l.ensalar === false ? '' : 'checked'} />
+                </label>
                 <button class="mini" data-remover-linha="${i}" title="Remover">×</button>
               </div>`,
                 )
@@ -114,7 +119,8 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
 
     alvo.querySelectorAll('[data-campo]').forEach((campo) => {
       campo.onchange = () => {
-        linhas[Number(campo.dataset.i)][campo.dataset.campo] = campo.value
+        const linha = linhas[Number(campo.dataset.i)]
+        linha[campo.dataset.campo] = campo.type === 'checkbox' ? campo.checked : campo.value
         if (campo.dataset.campo === 'disciplinaId') desenha()
       }
     })
@@ -129,7 +135,13 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
     el('ed-add').onclick = () => {
       if (linhas.length >= maximo) return
       const ultima = linhas[linhas.length - 1]
-      linhas.push({ disciplinaId: '', dia: ultima?.dia || '', turno: ultima?.turno || 'NOTURNO' })
+      linhas.push({
+        disciplinaId: '',
+        curso: ultima?.curso || 'CICLO_BASICO',
+        dia: ultima?.dia || '',
+        turno: ultima?.turno || 'NOTURNO',
+        ensalar: true,
+      })
       desenha()
     }
 
@@ -140,7 +152,13 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
 
       try {
         const r = await salvar(
-          prontas.map((l) => ({ disciplinaId: Number(l.disciplinaId), dia: l.dia || null, turno: l.turno })),
+          prontas.map((l) => ({
+            disciplinaId: Number(l.disciplinaId),
+            curso: l.curso || 'CICLO_BASICO',
+            dia: l.dia || null,
+            turno: l.turno,
+            ensalar: l.ensalar !== false,
+          })),
         )
         if (r.ocupadas?.length) {
           avisar(`Já tem dono: ${r.ocupadas.map((o) => `${o.disciplina} (${o.professor})`).join(', ')}`, 'info')
@@ -175,7 +193,13 @@ async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
     .filter((d) => meus.has(d.numero))
     .map((d) => {
       const t = meus.get(d.numero)
-      return { disciplinaId: d.id, dia: t.diaSemana || '', turno: t.turno || 'NOTURNO' }
+      return {
+        disciplinaId: d.id,
+        curso: t.curso || 'CICLO_BASICO',
+        dia: t.diaSemana || '',
+        turno: t.turno || 'NOTURNO',
+        ensalar: t.ensalar !== false,
+      }
     })
 
   el(alvoId).innerHTML = '<div class="cartao cantos"><div class="canto"></div><div id="ed-corpo"></div></div>'
@@ -187,7 +211,8 @@ async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
     maximo: catalogo.maximo || 10,
     titulo: 'Minhas disciplinas',
     ajuda:
-      'Uma linha por disciplina que você leciona, cada uma com o seu dia e o seu turno. ' +
+      'Uma linha por disciplina que você leciona, com o curso, o dia, o turno e se ela entra ' +
+      'na mistura de salas (desmarque se os alunos fazem a prova na própria sala). ' +
       'Disciplina que já é de outro professor aparece com o nome dele e não pode ser escolhida. ' +
       'Tirar uma linha devolve a disciplina para a lista de disponíveis.',
     salvar: (itens) => api('/turmas/minhas-disciplinas', { method: 'POST', body: { itens } }),
@@ -205,32 +230,15 @@ async function viewTurma(turmaId) {
     <div class="rotulo-secao">Disciplina ${turma.numero}</div>
     <h2 class="titulo">${esc(turma.disciplina)}</h2>
 
-    <div class="grade g2" style="margin-bottom:22px">
-      <div class="cartao cantos"><div class="canto"></div>
-        <div class="rotulo-secao" style="margin-bottom:16px">Configuração da prova</div>
+    <p class="pequeno texto-3" style="margin:-10px 0 20px">
+      ${turma.diaSemana ? esc(ROTULO_DIA[turma.diaSemana]) : 'dia não definido'}
+      · ${esc(ROTULO_TURNO[turma.turno] || turma.turno)}
+      · ${esc(ROTULO_CURSO[turma.curso] || turma.curso)}
+      · ${turma.ensalar ? 'entra na mistura de salas' : 'fora da mistura'}
+      — para mudar, use a lista de disciplinas em <em>Minhas turmas</em>.
+    </p>
 
-        <p class="pequeno texto-3" style="margin:-6px 0 16px">
-          <strong style="color:var(--texto-2)">
-            ${turma.diaSemana ? esc(ROTULO_DIA[turma.diaSemana]) : 'dia não definido'}
-            · ${esc(ROTULO_TURNO[turma.turno] || turma.turno)}
-          </strong><br />
-          O dia e o turno vêm da tela <em>Minhas turmas</em>, na lista de disciplinas.
-        </p>
-
-        <label class="campo"><span>Curso</span>${selectCursos(turma.curso, 'id="f-curso"')}</label>
-
-        <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;margin:16px 0">
-          <input type="checkbox" id="f-ensalar" ${turma.ensalar ? 'checked' : ''} style="width:auto;margin-top:4px" />
-          <span class="pequeno texto-2">
-            <strong style="color:var(--texto)">Esta turma entra na mistura de salas</strong><br />
-            Desmarque se os alunos fazem a prova na própria sala. Eles continuam no resumo
-            e no gabarito para a leitura do cartão-resposta.
-          </span>
-        </label>
-
-        <button class="acao" id="salvar-config">Salvar configuração</button>
-      </div>
-
+    <div style="margin-bottom:22px">
       <div class="cartao cantos"><div class="canto"></div>
         <div class="rotulo-secao" style="margin-bottom:16px">Gabarito — 10 questões</div>
         <div class="gabarito-grade" id="gabarito"></div>
@@ -327,22 +335,7 @@ async function viewTurma(turmaId) {
     avisar(faltam ? `Gabarito salvo — ainda faltam ${faltam} questões.` : 'Gabarito salvo e completo.', faltam ? 'info' : 'ok')
   }
 
-  /* -------------------------------- configuração ------------------------------ */
-
   el('voltar').onclick = () => irPara(ehAdmin() ? 'admin-turmas' : 'turmas')
-
-  el('salvar-config').onclick = async () => {
-    await api(`/turmas/${turmaId}`, {
-      method: 'PUT',
-      body: {
-        diaSemana: turma.diaSemana || null,
-        curso: el('f-curso').value,
-        turno: turma.turno,
-        ensalar: el('f-ensalar').checked,
-      },
-    })
-    avisar('Configuração salva.')
-  }
 
   /* ---------------------------------- alunos --------------------------------- */
 

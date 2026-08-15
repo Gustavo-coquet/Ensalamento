@@ -290,10 +290,22 @@ tbody tr:hover { background: var(--painel-2); }
 .cabecalho-disc,
 .linha-disc {
   display: grid;
-  grid-template-columns: minmax(220px, 3fr) minmax(130px, 1.3fr) minmax(110px, 1fr) 36px;
+  grid-template-columns:
+    minmax(200px, 3fr) minmax(130px, 1.4fr) minmax(120px, 1.3fr)
+    minmax(100px, 1fr) 74px 36px;
   gap: 8px;
   align-items: center;
 }
+
+.caixa-mistura {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.caixa-mistura input { width: auto; margin: 0; }
 
 .cabecalho-disc {
   padding: 0 2px 4px;
@@ -305,17 +317,19 @@ tbody tr:hover { background: var(--painel-2); }
 .linha-disc select { margin: 0; }
 .linha-disc option:disabled { color: var(--texto-3); }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .cabecalho-disc { display: none; }
   .linha-disc {
-    grid-template-columns: 1fr 1fr 36px;
-    grid-template-areas: 'disc disc rem' 'dia turno rem';
-    padding-bottom: 10px;
+    grid-template-columns: 1fr 1fr 60px 36px;
+    grid-template-areas: 'disc disc disc rem' 'curso curso mist rem' 'dia turno mist rem';
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--linha);
   }
-  .linha-disc > select:nth-child(1) { grid-area: disc; }
-  .linha-disc > select:nth-child(2) { grid-area: dia; }
-  .linha-disc > select:nth-child(3) { grid-area: turno; }
+  .linha-disc > *:nth-child(1) { grid-area: disc; }
+  .linha-disc > *:nth-child(2) { grid-area: curso; }
+  .linha-disc > *:nth-child(3) { grid-area: dia; }
+  .linha-disc > *:nth-child(4) { grid-area: turno; }
+  .linha-disc > .caixa-mistura { grid-area: mist; }
   .linha-disc > button { grid-area: rem; }
 }
 
