@@ -51,7 +51,7 @@ export function exigeLogin(req: Request, res: Response, next: NextFunction) {
 
 export function exigeAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.usuario) return res.status(401).json({ erro: 'Não autenticado' })
-  if (req.usuario.papel !== 'ADMIN') return res.status(403).json({ erro: 'Acesso restrito à coordenação' })
+  if (req.usuario.papel !== 'ADMIN') return res.status(403).json({ erro: 'Acesso restrito ao administrador' })
   next()
 }
 
@@ -69,7 +69,7 @@ export type TurmaBase = {
   professor: string | null
 }
 
-/** Coordenador acessa qualquer turma; professor só as dele. Devolve null se não puder. */
+/** Administrador acessa qualquer turma; professor só as dele. Devolve null se não puder. */
 export async function turmaPermitida(usuario: Sessao, turmaId: string): Promise<TurmaBase | null> {
   if (!/^[0-9a-f-]{36}$/i.test(turmaId)) return null
 

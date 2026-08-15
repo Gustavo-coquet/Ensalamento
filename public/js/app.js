@@ -11,6 +11,7 @@ const MENU_ADMIN = [
   { rota: 'salas', texto: 'Gerar salas' },
   { rota: 'admin-turmas', texto: 'Turmas' },
   { rota: 'professores', texto: 'Professores' },
+  { rota: 'importar', texto: 'Cadastro em lote' },
   { separador: true },
   { rota: 'manutencao', texto: 'Manutenção' },
   { rota: 'senha', texto: 'Trocar senha' },
@@ -56,13 +57,14 @@ async function rotear() {
     salas: viewSalas,
     'admin-turmas': viewAdminTurmas,
     professores: viewProfessores,
+    importar: viewImportar,
     manutencao: viewManutencao,
     turmas: viewMinhasTurmas,
     senha: viewSenha,
     turma: () => viewTurma(param),
   }
 
-  const somenteAdmin = ['painel', 'salas', 'admin-turmas', 'professores', 'manutencao']
+  const somenteAdmin = ['painel', 'salas', 'admin-turmas', 'professores', 'importar', 'manutencao']
   if (somenteAdmin.includes(base) && !ehAdmin()) return irPara('turmas')
 
   const tela = telas[base]
@@ -82,7 +84,7 @@ function mostrarApp() {
   el('tela-login').classList.add('oculto')
   el('app').classList.remove('oculto')
   el('topo-nome').textContent = usuarioAtual.nome
-  el('topo-papel').textContent = ehAdmin() ? 'coordenação' : 'professor'
+  el('topo-papel').textContent = ehAdmin() ? 'administrador' : 'professor'
   rotear()
 }
 

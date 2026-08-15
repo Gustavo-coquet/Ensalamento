@@ -1,7 +1,8 @@
 import { Router, type Response } from 'express'
 import bcrypt from 'bcryptjs'
-import { q, q1 } from '../lib/db'
+import { q, q1, transacao } from '../lib/db'
 import { exigeAdmin } from '../lib/auth'
+import { lerLinhas, acharDisciplina, type Disciplina } from '../lib/importacao'
 import { paraCSV } from '../lib/csv'
 import { carregarEnsalamento, gerarEnsalamento } from '../lib/ensalamento'
 import {
@@ -173,6 +174,132 @@ rotasAdmin.post('/turmas', async (req, res) => {
     [disciplinaId, professorId, curso, dia, turno],
   )
   res.status(201).json({ turma })
+})
+
+/**
+ * Cadastro em lote: uma linha por turma, com disciplina, professor, e-mail e
+ * (opcionalmente) senha, dia e turno. Cria o professor se ele ainda não existir,
+ * reaproveita se já existir, e liga a disciplina a ele.
+ *
+ * Com `modo: 'simular'` nada é gravado — serve para conferir antes de aplicar.
+ */
+rotasAdmin.post('/importar', async (req, res) => {
+  const texto = String(req.body?.texto ?? '')
+  const senhaPadrao = String(req.body?.senhaPadrao ?? '').trim() || 'lasalle2026'
+  const aplicar = req.body?.modo === 'aplicar'
+
+  if (senhaPadrao.length < 6) {
+    return res.status(400).json({ erro: 'A senha padrão precisa de pelo menos 6 caracteres' })
+  }
+
+  const linhas = lerLinhas(texto, senhaPadrao)
+  if (!linhas.length) return res.status(400).json({ erro: 'Nenhuma linha reconhecida' })
+
+  const disciplinas = await q<Disciplina>('SELECT id, numero, nome FROM disciplina ORDER BY numero')
+  const usuarios = await q<any>('SELECT id, email, nome FROM usuario')
+  const turmas = await q<any>('SELECT id, disciplina_id, professor_id FROM turma')
+
+  const porEmail = new Map<string, any>(usuarios.map((u) => [String(u.email).toLowerCase(), u]))
+  const porDisciplina = new Map<number, any>(turmas.map((t) => [t.disciplina_id, t]))
+
+  const resultado = linhas.map((l) => {
+    const base = {
+      linha: l.linha,
+      professor: l.professor,
+      email: l.email,
+      dia: l.dia,
+      turno: l.turno,
+      disciplinaTexto: l.disciplina,
+      disciplinaId: null as number | null,
+      disciplinaNome: '',
+      acaoProfessor: '' as 'criar' | 'existente' | '',
+      acaoTurma: '' as 'criar' | 'atualizar' | '',
+      erro: l.erro,
+    }
+    if (base.erro) return base
+
+    const { achou, ambigua } = acharDisciplina(l.disciplina, disciplinas)
+    if (ambigua) {
+      base.erro = `Disciplina ambígua — pode ser: ${ambigua.slice(0, 3).map((d) => d.nome).join(' / ')}`
+      return base
+    }
+    if (!achou) {
+      base.erro = `Disciplina não encontrada: "${l.disciplina}"`
+      return base
+    }
+
+    base.disciplinaId = achou.id
+    base.disciplinaNome = achou.nome
+    base.acaoProfessor = porEmail.has(l.email) ? 'existente' : 'criar'
+    base.acaoTurma = porDisciplina.has(achou.id) ? 'atualizar' : 'criar'
+    return base
+  })
+
+  // duas linhas apontando para a mesma disciplina brigariam entre si
+  const vistas = new Map<number, number>()
+  for (const r of resultado) {
+    if (r.erro || !r.disciplinaId) continue
+    const antes = vistas.get(r.disciplinaId)
+    if (antes) r.erro = `Disciplina repetida (já apareceu na linha ${antes})`
+    else vistas.set(r.disciplinaId, r.linha)
+  }
+
+  const validas = resultado.filter((r) => !r.erro)
+
+  if (aplicar && validas.length) {
+    await transacao(async (exec) => {
+      for (const r of validas) {
+        const linhaOriginal = linhas.find((l) => l.linha === r.linha)!
+
+        let professorId: string
+        const existente = porEmail.get(r.email)
+        if (existente) {
+          professorId = existente.id
+        } else {
+          const hash = await bcrypt.hash(linhaOriginal.senha, 10)
+          const [criado] = await exec<{ id: string }>(
+            `INSERT INTO usuario (nome, email, senha_hash, papel) VALUES ($1,$2,$3,'PROFESSOR')
+             RETURNING id`,
+            [r.professor, r.email, hash],
+          )
+          professorId = criado.id
+          porEmail.set(r.email, { id: professorId, email: r.email, nome: r.professor })
+        }
+
+        const turmaExistente = porDisciplina.get(r.disciplinaId!)
+        if (turmaExistente) {
+          await exec(
+            `UPDATE turma SET professor_id = $1,
+                              dia_semana = COALESCE($2, dia_semana),
+                              turno = $3,
+                              atualizado_em = now()
+              WHERE id = $4`,
+            [professorId, r.dia, r.turno, turmaExistente.id],
+          )
+        } else {
+          const [nova] = await exec<{ id: string }>(
+            `INSERT INTO turma (disciplina_id, professor_id, dia_semana, turno)
+             VALUES ($1,$2,$3,$4) RETURNING id`,
+            [r.disciplinaId, professorId, r.dia, r.turno],
+          )
+          porDisciplina.set(r.disciplinaId!, { id: nova.id, disciplina_id: r.disciplinaId })
+        }
+      }
+    })
+  }
+
+  res.json({
+    aplicado: aplicar,
+    resumo: {
+      linhas: resultado.length,
+      validas: validas.length,
+      erros: resultado.length - validas.length,
+      professoresNovos: new Set(validas.filter((r) => r.acaoProfessor === 'criar').map((r) => r.email)).size,
+      turmasNovas: validas.filter((r) => r.acaoTurma === 'criar').length,
+      turmasAtualizadas: validas.filter((r) => r.acaoTurma === 'atualizar').length,
+    },
+    linhas: resultado,
+  })
 })
 
 rotasAdmin.put('/turmas/:id/professor', async (req, res) => {

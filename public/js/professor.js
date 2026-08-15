@@ -10,7 +10,7 @@ async function viewMinhasTurmas() {
       <h2 class="titulo">Nenhuma turma atribuída</h2>
       <div class="cartao cantos"><div class="canto"></div>
         <p class="texto-2">Você ainda não tem disciplinas vinculadas ao seu usuário.
-        Peça ao coordenador para cadastrar a sua turma no painel de administração.</p>
+        Peça ao administrador para cadastrar a sua turma.</p>
       </div>`
     return
   }

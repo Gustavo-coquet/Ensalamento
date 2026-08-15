@@ -66,7 +66,7 @@ const DISCIPLINAS = [
 
 /**
  * Popula o banco de forma idempotente: garante as 60 disciplinas e a conta de
- * coordenação. Roda no boot (o plano free do Render não tem shell) e também
+ * administração. Roda no boot (o plano free do Render não tem shell) e também
  * pelo `npm run seed`.
  *
  * A senha do admin só é sobrescrita quando FORCAR_SENHA_ADMIN=1 — assim um
@@ -89,10 +89,10 @@ export async function semear({ silencioso = false } = {}) {
 
   const email = (process.env.ADMIN_EMAIL || '').trim().toLowerCase()
   const senha = process.env.ADMIN_SENHA || ''
-  const nome = process.env.ADMIN_NOME || 'Coordenação'
+  const nome = (process.env.ADMIN_NOME || '').trim() || 'Administração'
 
   if (!email || senha.length < 6) {
-    log('  (ADMIN_EMAIL/ADMIN_SENHA não definidos — conta de coordenação não criada)')
+    log('  (ADMIN_EMAIL/ADMIN_SENHA não definidos — conta de administrador não criada)')
     return
   }
 
@@ -100,7 +100,12 @@ export async function semear({ silencioso = false } = {}) {
   const forcar = process.env.FORCAR_SENHA_ADMIN === '1'
 
   if (existente && !forcar) {
-    await q("UPDATE usuario SET papel = 'ADMIN', ativo = TRUE WHERE id = $1", [existente.id])
+    // mantém o nome em dia: basta ajustar ADMIN_NOME e redeployar
+    if (process.env.ADMIN_NOME?.trim()) {
+      await q("UPDATE usuario SET nome = $1, papel = 'ADMIN', ativo = TRUE WHERE id = $2", [nome, existente.id])
+    } else {
+      await q("UPDATE usuario SET papel = 'ADMIN', ativo = TRUE WHERE id = $1", [existente.id])
+    }
     return
   }
 
@@ -111,5 +116,5 @@ export async function semear({ silencioso = false } = {}) {
      ON CONFLICT (email) DO UPDATE SET senha_hash = EXCLUDED.senha_hash, papel = 'ADMIN', ativo = TRUE`,
     [nome, email, hash],
   )
-  log(`\u2713 coordenação: ${email}`)
+  log(`\u2713 administrador: ${email}`)
 }

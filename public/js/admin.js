@@ -1,4 +1,4 @@
-/* Telas do coordenador: painel, turmas, professores, geração de salas e exportações. */
+/* Telas do administrador: painel, turmas, professores, geração de salas e exportações. */
 
 async function viewPainel() {
   const d = await api('/admin/dashboard')
@@ -193,13 +193,13 @@ async function viewProfessores() {
     <div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
       <div class="rotulo-secao" style="margin-bottom:14px">Novo usuário</div>
       <div class="grade g2">
-        <label class="campo"><span>Nome</span><input id="u-nome" placeholder="Yago Chamoun" /></label>
+        <label class="campo"><span>Nome</span><input id="u-nome" placeholder="Nome do professor" /></label>
         <label class="campo"><span>E-mail</span><input id="u-email" type="email" placeholder="prof.nome@soulasalle.com.br" /></label>
         <label class="campo"><span>Senha inicial</span><input id="u-senha" placeholder="mínimo 6 caracteres" /></label>
         <label class="campo"><span>Papel</span>
           <select id="u-papel">
             <option value="PROFESSOR">Professor</option>
-            <option value="ADMIN">Coordenador (vê tudo)</option>
+            <option value="ADMIN">Administrador (vê tudo)</option>
           </select>
         </label>
       </div>
@@ -215,7 +215,7 @@ async function viewProfessores() {
               (u) => `<tr>
                 <td>${esc(u.nome)}</td>
                 <td class="texto-2 pequeno">${esc(u.email)}</td>
-                <td>${u.papel === 'ADMIN' ? '<span class="pill ok">coordenador</span>' : '<span class="pill neutro">professor</span>'}</td>
+                <td>${u.papel === 'ADMIN' ? '<span class="pill ok">administrador</span>' : '<span class="pill neutro">professor</span>'}</td>
                 <td>${u.turmas}</td>
                 <td style="text-align:right">
                   <button class="secundaria" style="padding:4px 10px;font-size:12px" data-senha="${u.id}">senha</button>
@@ -400,6 +400,134 @@ function desenhaSalas(ensalamento) {
 
   el('o-alfa').onclick = () => { ordenacaoSalas = 'alfabetica'; desenhaSalas(ensalamento) }
   el('o-disc').onclick = () => { ordenacaoSalas = 'disciplina'; desenhaSalas(ensalamento) }
+}
+
+/* ------------------------------ cadastro em lote ----------------------------- */
+
+async function viewImportar() {
+  const { disciplinas } = await api('/admin/disciplinas')
+
+  el('conteudo').innerHTML = `
+    <div class="rotulo-secao">Cadastro em lote</div>
+    <h2 class="titulo">Professores e disciplinas de uma vez</h2>
+
+    <div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
+      <div class="rotulo-secao" style="margin-bottom:6px">Cole a lista</div>
+      <p class="pequeno texto-3" style="margin-bottom:12px">
+        Uma linha por disciplina. Colunas separadas por <strong>tabulação</strong> (colando
+        direto do Excel), <strong>ponto e vírgula</strong> ou <strong>barra vertical</strong>:<br />
+        <span class="mono">DISCIPLINA ; PROFESSOR ; E-MAIL ; SENHA ; DIA ; TURNO</span><br />
+        Só as três primeiras são obrigatórias. Sem senha, entra a senha padrão abaixo.
+        Sem dia e turno, o próprio professor define depois.
+        A disciplina pode ser o nome (sem se preocupar com acento) ou o número dela.
+        Se o professor já existir, ele é reaproveitado — a senha dele não é alterada.
+      </p>
+
+      <textarea id="i-texto" style="min-height:190px" placeholder="Cálculo Numérico; Nome do professor; email@soulasalle.com.br; senha123; terça; noturno
+Física Geral e Experimental I; Outro professor; outro@soulasalle.com.br; ; terça; noturno
+51; Outro professor; outro@soulasalle.com.br; ; quinta; diurno"></textarea>
+
+      <div class="grade g2" style="margin-top:14px">
+        <label class="campo" style="margin:0"><span>Senha padrão (quando a coluna vier vazia)</span>
+          <input id="i-senha" value="lasalle2026" />
+        </label>
+        <div style="display:flex;align-items:flex-end;gap:10px">
+          <button class="secundaria" id="i-conferir" style="flex:1">Conferir</button>
+          <button class="acao" id="i-aplicar" style="flex:1">Cadastrar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="i-resultado"></div>
+
+    <div class="cartao cantos" style="margin-top:22px"><div class="canto"></div>
+      <div class="rotulo-secao" style="margin-bottom:10px">Disciplinas cadastradas (${disciplinas.length})</div>
+      <p class="pequeno texto-3" style="margin-bottom:12px">
+        São estes os nomes que o sistema reconhece. Pode usar o número no lugar do nome.
+      </p>
+      <div class="grade g3 pequeno texto-2">
+        ${disciplinas
+          .map((d) => `<div><span class="texto-3 mono">${d.numero}</span> ${esc(d.nome)}</div>`)
+          .join('')}
+      </div>
+    </div>`
+
+  async function enviar(modo) {
+    const texto = el('i-texto').value
+    if (!texto.trim()) return avisar('Cole a lista primeiro.', 'erro')
+
+    try {
+      const r = await api('/admin/importar', {
+        method: 'POST',
+        body: { texto, senhaPadrao: el('i-senha').value, modo },
+      })
+      desenhaImportacao(r)
+      if (r.aplicado) {
+        avisar(
+          `${r.resumo.professoresNovos} professor(es) novo(s), ` +
+            `${r.resumo.turmasNovas} turma(s) criada(s), ${r.resumo.turmasAtualizadas} atualizada(s).`,
+        )
+      }
+    } catch (e) {
+      avisar(e.message, 'erro')
+    }
+  }
+
+  el('i-conferir').onclick = () => enviar('simular')
+  el('i-aplicar').onclick = () => {
+    if (!confirm('Cadastrar as linhas válidas? As linhas com erro são ignoradas.')) return
+    enviar('aplicar')
+  }
+}
+
+function desenhaImportacao(r) {
+  const marca = (linha) => {
+    if (linha.erro) return `<span class="pill alerta">${esc(linha.erro)}</span>`
+    const partes = []
+    partes.push(
+      linha.acaoProfessor === 'criar'
+        ? '<span class="pill ok">professor novo</span>'
+        : '<span class="pill neutro">professor já existia</span>',
+    )
+    partes.push(
+      linha.acaoTurma === 'criar'
+        ? '<span class="pill ok">turma nova</span>'
+        : '<span class="pill neutro">turma atualizada</span>',
+    )
+    return partes.join(' ')
+  }
+
+  el('i-resultado').innerHTML = `
+    <div class="cartao cantos"><div class="canto"></div>
+      <div class="rotulo-secao" style="margin-bottom:6px">
+        ${r.aplicado ? 'Cadastro concluído' : 'Conferência (nada foi gravado ainda)'}
+      </div>
+      <h3 style="margin:0 0 14px">
+        ${r.resumo.validas} linha${r.resumo.validas === 1 ? '' : 's'} ok
+        ${r.resumo.erros ? `· ${r.resumo.erros} com problema` : ''}
+      </h3>
+      <table>
+        <thead><tr>
+          <th style="width:44px">#</th><th>Disciplina</th><th>Professor</th>
+          <th>E-mail</th><th>Dia</th><th>Turno</th><th>Situação</th>
+        </tr></thead>
+        <tbody>
+          ${r.linhas
+            .map(
+              (l) => `<tr>
+                <td class="texto-3">${l.linha}</td>
+                <td>${esc(l.disciplinaNome || l.disciplinaTexto)}</td>
+                <td class="texto-2">${esc(l.professor)}</td>
+                <td class="texto-2 pequeno">${esc(l.email)}</td>
+                <td class="texto-2 pequeno">${l.dia ? esc(ROTULO_DIA[l.dia]) : '—'}</td>
+                <td class="texto-2 pequeno">${esc(ROTULO_TURNO[l.turno] || '—')}</td>
+                <td style="display:flex;gap:4px;flex-wrap:wrap">${marca(l)}</td>
+              </tr>`,
+            )
+            .join('')}
+        </tbody>
+      </table>
+    </div>`
 }
 
 /* --------------------------------- manutenção -------------------------------- */

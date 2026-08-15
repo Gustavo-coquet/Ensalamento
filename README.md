@@ -24,9 +24,11 @@ navegador.
   ponto e vírgula ou espaço);
 - preenche o gabarito das 10 questões clicando em A/B/C/D/E.
 
-**Coordenação (admin)**
+**Administrador**
 
-- cadastra professores e turmas (disciplina → professor);
+- cadastra professores e turmas (disciplina → professor) um a um **ou em lote**,
+  colando uma lista no formato `DISCIPLINA ; PROFESSOR ; E-MAIL ; SENHA ; DIA ; TURNO`
+  (as três primeiras obrigatórias) — com botão de *Conferir* antes de gravar;
 - acompanha no painel o que ainda falta: turma sem dia, sem professor, sem gabarito;
 - gera as salas de um dia com um clique, escolhendo a lotação máxima;
 - vê cada sala nas duas ordens — **alfabética** e **por disciplina** — com o resumo de
