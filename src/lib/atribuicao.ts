@@ -17,7 +17,12 @@ export type ResultadoAtribuicao = {
   vinculadas: number
   criadas: number
   liberadas: number
+  /** disciplina que já é de outro professor */
   ocupadas: { disciplina: string; professor: string }[]
+  /** disciplina que não está sendo ofertada neste semestre */
+  naoOfertadas: string[]
+  /** duas disciplinas dele no mesmo dia e turno */
+  conflitos: string[]
 }
 
 /** Aceita o que vem do navegador e devolve só o que é válido. */
@@ -81,15 +86,47 @@ export async function atribuirDisciplinas(
     if (melhor) porDisciplina.set(t.disciplina_id, t)
   }
 
+  const catalogo = new Map<number, any>(
+    (await q<any>('SELECT id, nome, ativa FROM disciplina')).map((d) => [d.id, d]),
+  )
+
+  const jaDele = new Set(
+    existentes.filter((t) => t.professor_id === professorId).map((t) => t.disciplina_id),
+  )
+
   const ocupadas: ResultadoAtribuicao['ocupadas'] = []
+  const naoOfertadas: string[] = []
+  const conflitos: string[] = []
   const paraVincular: ItemAtribuicao[] = []
+  const agenda = new Map<string, string>() // "DIA|TURNO" -> nome da disciplina
 
   for (const item of itens) {
+    const disciplina = catalogo.get(item.disciplinaId)
+    if (!disciplina) continue
+
+    // disciplina fora da oferta do semestre só continua se já era dele
+    if (!disciplina.ativa && !jaDele.has(item.disciplinaId)) {
+      naoOfertadas.push(disciplina.nome)
+      continue
+    }
+
     const turma = porDisciplina.get(item.disciplinaId)
     if (turma && turma.professor_id && turma.professor_id !== professorId) {
       ocupadas.push({ disciplina: turma.disciplina, professor: turma.dono })
       continue
     }
+
+    // ninguém dá duas aulas no mesmo dia e turno
+    if (item.dia) {
+      const chave = `${item.dia}|${item.turno}`
+      const jaOcupado = agenda.get(chave)
+      if (jaOcupado) {
+        conflitos.push(`${disciplina.nome} choca com ${jaOcupado}`)
+        continue
+      }
+      agenda.set(chave, disciplina.nome)
+    }
+
     paraVincular.push(item)
   }
 
@@ -141,7 +178,14 @@ export async function atribuirDisciplinas(
   ]
   await invalidarEnsalamento(afetados)
 
-  return { vinculadas: paraVincular.length, criadas, liberadas: paraLiberar.length, ocupadas }
+  return {
+    vinculadas: paraVincular.length,
+    criadas,
+    liberadas: paraLiberar.length,
+    ocupadas,
+    naoOfertadas,
+    conflitos,
+  }
 }
 
 /**
@@ -152,7 +196,7 @@ export async function disciplinasComDono() {
   return q<any>(
     `SELECT * FROM (
        SELECT DISTINCT ON (d.id)
-              d.id, d.numero, d.nome,
+              d.id, d.numero, d.nome, d.ativa,
               t.professor_id       AS "professorId",
               COALESCE(u.nome, '') AS "professorNome"
          FROM disciplina d

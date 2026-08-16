@@ -107,7 +107,25 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
 /* ------------------------------- Disciplinas ------------------------------ */
 
 rotasAdmin.get('/disciplinas', async (_req, res) => {
-  res.json({ disciplinas: await q('SELECT id, numero, nome FROM disciplina ORDER BY numero ASC') })
+  const disciplinas = await q<any>(
+    `SELECT d.id, d.numero, d.nome, d.ativa,
+            (SELECT COUNT(*)::int FROM turma t WHERE t.disciplina_id = d.id) AS turmas
+       FROM disciplina d ORDER BY d.numero ASC`,
+  )
+  res.json({ disciplinas })
+})
+
+/**
+ * Define a oferta do semestre: só as disciplinas marcadas aparecem para o professor
+ * escolher. O que já foi atribuído continua valendo — desmarcar não apaga turma.
+ */
+rotasAdmin.put('/disciplinas/ofertadas', async (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isInteger) : []
+
+  await q('UPDATE disciplina SET ativa = (id = ANY($1::int[]))', [ids])
+
+  const total = Number((await q1<{ n: string }>('SELECT COUNT(*) AS n FROM disciplina WHERE ativa'))!.n)
+  res.json({ ok: true, ofertadas: total })
 })
 
 /* -------------------------------- Usuários -------------------------------- */

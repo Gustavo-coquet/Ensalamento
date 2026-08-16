@@ -62,8 +62,50 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
   let linhas = itens.map((i) => ({ ...i }))
 
 
+  /** Dia+turno é agenda: o professor não pode estar em dois lugares na mesma hora. */
+  function diasOcupados(indice) {
+    const turnoDaLinha = linhas[indice]?.turno || 'NOTURNO'
+    return new Set(
+      linhas
+        .filter((outra, i) => i !== indice && outra.dia && (outra.turno || 'NOTURNO') === turnoDaLinha)
+        .map((outra) => outra.dia),
+    )
+  }
+
+  function opcoesDia(indice) {
+    const ocupados = diasOcupados(indice)
+    const atual = linhas[indice]?.dia || ''
+    return (
+      '<option value="">— sem dia definido —</option>' +
+      DIAS.map((d) => {
+        const travado = ocupados.has(d) && atual !== d
+        return `<option value="${d}" ${atual === d ? 'selected' : ''} ${travado ? 'disabled' : ''}>${
+          ROTULO_DIA[d]
+        }${travado ? ' — já ocupado' : ''}</option>`
+      }).join('')
+    )
+  }
+
+  /** Índices das linhas que caem no mesmo dia+turno de outra. */
+  function indicesEmConflito() {
+    const vistos = new Map()
+    const conflitantes = new Set()
+    linhas.forEach((l, i) => {
+      if (!l.dia) return
+      const chave = `${l.dia}|${l.turno || 'NOTURNO'}`
+      if (vistos.has(chave)) {
+        conflitantes.add(i)
+        conflitantes.add(vistos.get(chave))
+      } else {
+        vistos.set(chave, i)
+      }
+    })
+    return conflitantes
+  }
+
   function desenha() {
     const usadas = new Set(linhas.map((l) => Number(l.disciplinaId)).filter(Boolean))
+    const conflitantes = indicesEmConflito()
 
     const opcoes = (selecionada) =>
       ['<option value="">— escolher disciplina —</option>']
@@ -93,10 +135,10 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
             ? linhas
                 .map(
                   (l, i) => `
-              <div class="linha-disc">
+              <div class="linha-disc ${conflitantes.has(i) ? 'em-conflito' : ''}">
                 <select data-campo="disciplinaId" data-i="${i}">${opcoes(l.disciplinaId)}</select>
                 ${selectCursos(l.curso || 'CICLO_BASICO', `data-campo="curso" data-i="${i}"`)}
-                ${selectDias(l.dia || '', `data-campo="dia" data-i="${i}"`)}
+                <select data-campo="dia" data-i="${i}">${opcoesDia(i)}</select>
                 ${selectTurnos(l.turno || 'NOTURNO', `data-campo="turno" data-i="${i}"`)}
                 <label class="caixa-mistura" title="Desmarque se os alunos fazem a prova na própria sala">
                   <input type="checkbox" data-campo="ensalar" data-i="${i}" ${l.ensalar === false ? '' : 'checked'} />
@@ -108,6 +150,15 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
             : '<div class="vazio">Nenhuma disciplina ainda.</div>'
         }
       </div>
+
+      ${
+        conflitantes.size
+          ? `<p class="pequeno" style="color:var(--perigo,#ff6b6b);margin-top:10px">
+               Duas disciplinas marcadas no mesmo dia e turno (em vermelho).
+               Ninguém dá duas aulas ao mesmo tempo — mude o dia ou o turno de uma delas.
+             </p>`
+          : ''
+      }
 
       <div class="linha-botoes" style="margin-top:14px">
         <button class="secundaria" id="ed-add" ${linhas.length >= maximo ? 'disabled' : ''}>
@@ -121,7 +172,7 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
       campo.onchange = () => {
         const linha = linhas[Number(campo.dataset.i)]
         linha[campo.dataset.campo] = campo.type === 'checkbox' ? campo.checked : campo.value
-        if (campo.dataset.campo === 'disciplinaId') desenha()
+        if (['disciplinaId', 'dia', 'turno'].includes(campo.dataset.campo)) desenha()
       }
     })
 
@@ -138,7 +189,7 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
       linhas.push({
         disciplinaId: '',
         curso: ultima?.curso || 'CICLO_BASICO',
-        dia: ultima?.dia || '',
+        dia: '',
         turno: ultima?.turno || 'NOTURNO',
         ensalar: true,
       })
@@ -149,6 +200,20 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
       const prontas = linhas.filter((l) => Number(l.disciplinaId))
       const semDisciplina = linhas.length - prontas.length
       if (semDisciplina) return avisar('Tem linha sem disciplina escolhida.', 'erro')
+
+      const agenda = new Map()
+      for (const l of prontas) {
+        if (!l.dia) continue
+        const chave = `${l.dia}|${l.turno || 'NOTURNO'}`
+        if (agenda.has(chave)) {
+          return avisar(
+            `Duas disciplinas em ${ROTULO_DIA[l.dia]} de ${(ROTULO_TURNO[l.turno] || '').toLowerCase()}. ` +
+              'Mude o dia ou o turno de uma delas.',
+            'erro',
+          )
+        }
+        agenda.set(chave, true)
+      }
 
       try {
         const r = await salvar(
@@ -162,6 +227,10 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
         )
         if (r.ocupadas?.length) {
           avisar(`Já tem dono: ${r.ocupadas.map((o) => `${o.disciplina} (${o.professor})`).join(', ')}`, 'info')
+        } else if (r.naoOfertadas?.length) {
+          avisar(`Fora da oferta deste semestre: ${r.naoOfertadas.join(', ')}`, 'info')
+        } else if (r.conflitos?.length) {
+          avisar(r.conflitos.join(' / '), 'erro')
         } else {
           avisar(`${r.vinculadas} disciplina(s) salva(s).`)
         }
@@ -184,10 +253,12 @@ async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
 
   const meus = new Map(turmas.map((t) => [t.numero, t]))
 
-  const disciplinas = catalogo.disciplinas.map((d) => ({
-    ...d,
-    bloqueada: !!d.professorId && !meus.has(d.numero),
-  }))
+  const disciplinas = catalogo.disciplinas
+    .filter((d) => d.ativa !== false || meus.has(d.numero))
+    .map((d) => ({
+      ...d,
+      bloqueada: !!d.professorId && !meus.has(d.numero),
+    }))
 
   const itens = catalogo.disciplinas
     .filter((d) => meus.has(d.numero))

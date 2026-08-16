@@ -25,23 +25,60 @@ const ROTULO_TURNO = {
 
 const ALTERNATIVAS = ['A', 'B', 'C', 'D', 'E']
 
+/* ------------------------------- ampulheta -------------------------------- */
+
+let chamadasAbertas = 0
+let timerAmpulheta = null
+
+/** Mostra a ampulheta só se a resposta demorar — evita piscar em chamada rápida. */
+function abreAmpulheta() {
+  chamadasAbertas++
+  if (timerAmpulheta || chamadasAbertas > 1) return
+  timerAmpulheta = setTimeout(() => {
+    document.body.classList.add('carregando')
+    let capa = el('ampulheta')
+    if (!capa) {
+      capa = document.createElement('div')
+      capa.id = 'ampulheta'
+      capa.innerHTML = '<div class="giro"></div><span>carregando…</span>'
+      document.body.appendChild(capa)
+    }
+    capa.classList.add('visivel')
+  }, 220)
+}
+
+function fechaAmpulheta() {
+  chamadasAbertas = Math.max(0, chamadasAbertas - 1)
+  if (chamadasAbertas > 0) return
+
+  clearTimeout(timerAmpulheta)
+  timerAmpulheta = null
+  document.body.classList.remove('carregando')
+  el('ampulheta')?.classList.remove('visivel')
+}
+
 async function api(caminho, opcoes = {}) {
-  const resposta = await fetch('/api' + caminho, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opcoes,
-    body: opcoes.body ? JSON.stringify(opcoes.body) : undefined,
-  })
+  abreAmpulheta()
+  try {
+    const resposta = await fetch('/api' + caminho, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opcoes,
+      body: opcoes.body ? JSON.stringify(opcoes.body) : undefined,
+    })
 
-  let dados = null
-  try { dados = await resposta.json() } catch { /* resposta sem corpo */ }
+    let dados = null
+    try { dados = await resposta.json() } catch { /* resposta sem corpo */ }
 
-  if (!resposta.ok) {
-    const erro = new Error(dados?.erro || `Erro ${resposta.status}`)
-    erro.detalhes = dados?.detalhes
-    erro.status = resposta.status
-    throw erro
+    if (!resposta.ok) {
+      const erro = new Error(dados?.erro || `Erro ${resposta.status}`)
+      erro.detalhes = dados?.detalhes
+      erro.status = resposta.status
+      throw erro
+    }
+    return dados
+  } finally {
+    fechaAmpulheta()
   }
-  return dados
 }
 
 function esc(texto) {

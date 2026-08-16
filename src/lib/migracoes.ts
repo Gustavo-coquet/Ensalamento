@@ -20,8 +20,11 @@ CREATE TABLE IF NOT EXISTS usuario (
 CREATE TABLE IF NOT EXISTS disciplina (
   id     SERIAL PRIMARY KEY,
   numero INT  NOT NULL UNIQUE,
-  nome   TEXT NOT NULL UNIQUE
+  nome   TEXT NOT NULL UNIQUE,
+  ativa  BOOLEAN NOT NULL DEFAULT TRUE
 );
+-- "ativa" = ofertada neste semestre. Nem toda disciplina abre todo semestre.
+ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ativa BOOLEAN NOT NULL DEFAULT TRUE;
 
 CREATE TABLE IF NOT EXISTS turma (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),

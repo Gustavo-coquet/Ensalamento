@@ -314,12 +314,22 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
     <div id="i-grade" style="margin-top:22px"></div>
 
     <div class="cartao cantos" style="margin-top:22px"><div class="canto"></div>
-      <div class="rotulo-secao" style="margin-bottom:10px">Disciplinas cadastradas (${disciplinas.length})</div>
-      <div class="grade g3 pequeno texto-2">
-        ${disciplinas
-          .map((d) => `<div><span class="texto-3 mono">${d.numero}</span> ${esc(d.nome)}</div>`)
-          .join('')}
+      <div class="rotulo-secao" style="margin-bottom:6px">Oferta do semestre</div>
+      <p class="pequeno texto-3" style="margin-bottom:12px">
+        Desmarque as disciplinas que <strong>não estão sendo oferecidas</strong> neste
+        semestre — elas somem da lista de escolha dos professores. Desmarcar não apaga
+        nada: turma que já existe continua como está.
+      </p>
+
+      <div class="linha-botoes" style="margin-bottom:12px">
+        <button class="secundaria" id="o-todas" style="padding:5px 12px;font-size:12px">marcar todas</button>
+        <button class="secundaria" id="o-nenhuma" style="padding:5px 12px;font-size:12px">desmarcar todas</button>
+        <span class="pequeno texto-3" id="o-contagem"></span>
       </div>
+
+      <div class="lista-oferta" id="o-lista"></div>
+
+      <button class="acao" id="o-salvar" style="margin-top:14px">Salvar oferta</button>
     </div>`
 
   async function enviar(modo) {
@@ -341,6 +351,56 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
             (r.resumo.professoresExistentes ? `, ${r.resumo.professoresExistentes} já existia(m).` : '.'),
         )
       }
+    } catch (e) {
+      avisar(e.message, 'erro')
+    }
+  }
+
+  /* ------------------------------ oferta do semestre ----------------------------- */
+
+  const ofertadas = new Set(disciplinas.filter((d) => d.ativa).map((d) => d.id))
+
+  function desenhaOferta() {
+    el('o-lista').innerHTML = disciplinas
+      .map((d) => {
+        const marcada = ofertadas.has(d.id)
+        return `
+          <label class="item-oferta ${marcada ? '' : 'fora'}">
+            <input type="checkbox" data-oferta="${d.id}" ${marcada ? 'checked' : ''} />
+            <span><span class="num">${d.numero}</span> ${esc(d.nome)}
+            ${d.turmas ? `<span class="pill neutro">${d.turmas} turma${d.turmas === 1 ? '' : 's'}</span>` : ''}</span>
+          </label>`
+      })
+      .join('')
+
+    el('o-contagem').textContent = `${ofertadas.size} de ${disciplinas.length} ofertadas`
+
+    el('o-lista').querySelectorAll('[data-oferta]').forEach((c) => {
+      c.onchange = () => {
+        const id = Number(c.dataset.oferta)
+        c.checked ? ofertadas.add(id) : ofertadas.delete(id)
+        c.closest('.item-oferta').classList.toggle('fora', !c.checked)
+        el('o-contagem').textContent = `${ofertadas.size} de ${disciplinas.length} ofertadas`
+      }
+    })
+  }
+
+  desenhaOferta()
+
+  el('o-todas').onclick = () => {
+    disciplinas.forEach((d) => ofertadas.add(d.id))
+    desenhaOferta()
+  }
+
+  el('o-nenhuma').onclick = () => {
+    ofertadas.clear()
+    desenhaOferta()
+  }
+
+  el('o-salvar').onclick = async () => {
+    try {
+      const r = await api('/admin/disciplinas/ofertadas', { method: 'PUT', body: { ids: [...ofertadas] } })
+      avisar(`${r.ofertadas} disciplina(s) na oferta deste semestre.`)
     } catch (e) {
       avisar(e.message, 'erro')
     }
@@ -500,10 +560,12 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
         ajuda:
           'Cada linha é uma disciplina com o seu próprio dia e turno. O que estiver com outro ' +
           'professor aparece com o nome dele e não pode ser escolhido.',
-        disciplinas: disciplinas.map((d) => ({
-          ...d,
-          bloqueada: !!d.professorId && d.professorId !== p.id,
-        })),
+        disciplinas: disciplinas
+          .filter((d) => d.ativa !== false || p.itens.some((i) => i.disciplinaId === d.id))
+          .map((d) => ({
+            ...d,
+            bloqueada: !!d.professorId && d.professorId !== p.id,
+          })),
         itens: p.itens.map((i) => ({ disciplinaId: i.disciplinaId, dia: i.dia || '', turno: i.turno })),
         salvar: (itens) => api(`/admin/atribuicao/${p.id}`, { method: 'POST', body: { itens } }),
         aoTerminar: () => montaGradeAtribuicao(alvoId, senhasRecentes),
