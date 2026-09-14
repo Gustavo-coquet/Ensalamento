@@ -97,10 +97,8 @@ export async function atribuirDisciplinas(
   }
 
   const catalogo = new Map<number, any>(
-    (await q<any>('SELECT id, nome, ativa FROM disciplina')).map((d) => [d.id, d]),
+    (await q<any>('SELECT id, nome, ofertada_diurno, ofertada_noturno FROM disciplina')).map((d) => [d.id, d]),
   )
-
-  const jaDele = new Set(poolPorDisciplina.keys())
 
   const ocupadas: ResultadoAtribuicao['ocupadas'] = []
   const naoOfertadas: string[] = []
@@ -112,9 +110,14 @@ export async function atribuirDisciplinas(
     const disciplina = catalogo.get(item.disciplinaId)
     if (!disciplina) continue
 
-    // disciplina fora da oferta do semestre só continua se já era dele
-    if (!disciplina.ativa && !jaDele.has(item.disciplinaId)) {
-      naoOfertadas.push(disciplina.nome)
+    // a oferta agora é por turno: nem toda disciplina de noite abre de dia, e vice-versa.
+    // Quem já era dele nesse turno continua valendo mesmo que a oferta seja desligada depois.
+    const ofertadaNesseTurno = item.turno === 'DIURNO' ? disciplina.ofertada_diurno : disciplina.ofertada_noturno
+    const jaDeleNesseTurno = (poolPorDisciplina.get(item.disciplinaId) ?? []).some(
+      (t) => t.turno === item.turno,
+    )
+    if (!ofertadaNesseTurno && !jaDeleNesseTurno) {
+      naoOfertadas.push(`${disciplina.nome} (${item.turno === 'DIURNO' ? 'diurno' : 'noturno'})`)
       continue
     }
 
@@ -204,7 +207,9 @@ export async function disciplinasComDono() {
   return q<any>(
     `SELECT * FROM (
        SELECT DISTINCT ON (d.id)
-              d.id, d.numero, d.nome, d.ativa,
+              d.id, d.numero, d.nome,
+              d.ofertada_diurno  AS "ofertadaDiurno",
+              d.ofertada_noturno AS "ofertadaNoturno",
               t.professor_id       AS "professorId",
               COALESCE(u.nome, '') AS "professorNome"
          FROM disciplina d

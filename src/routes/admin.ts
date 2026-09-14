@@ -108,7 +108,9 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
 
 rotasAdmin.get('/disciplinas', async (_req, res) => {
   const disciplinas = await q<any>(
-    `SELECT d.id, d.numero, d.nome, d.ativa,
+    `SELECT d.id, d.numero, d.nome,
+            d.ofertada_diurno  AS "ofertadaDiurno",
+            d.ofertada_noturno AS "ofertadaNoturno",
             (SELECT COUNT(*)::int FROM turma t WHERE t.disciplina_id = d.id) AS turmas
        FROM disciplina d ORDER BY d.numero ASC`,
   )
@@ -116,15 +118,27 @@ rotasAdmin.get('/disciplinas', async (_req, res) => {
 })
 
 /**
- * Define a oferta do semestre: só as disciplinas marcadas aparecem para o professor
- * escolher. O que já foi atribuído continua valendo — desmarcar não apaga turma.
+ * Define a oferta do semestre — agora por turno: uma disciplina pode ser oferecida só
+ * de dia, só à noite, nos dois ou em nenhum. Só as disciplinas marcadas em cada turno
+ * aparecem para o professor escolher naquele turno. O que já foi atribuído continua
+ * valendo — desmarcar não apaga turma.
  */
 rotasAdmin.put('/disciplinas/ofertadas', async (req, res) => {
-  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isInteger) : []
+  const diurno = Array.isArray(req.body?.diurno) ? req.body.diurno.map(Number).filter(Number.isInteger) : []
+  const noturno = Array.isArray(req.body?.noturno) ? req.body.noturno.map(Number).filter(Number.isInteger) : []
 
-  await q('UPDATE disciplina SET ativa = (id = ANY($1::int[]))', [ids])
+  await q(
+    `UPDATE disciplina
+        SET ofertada_diurno  = (id = ANY($1::int[])),
+            ofertada_noturno = (id = ANY($2::int[]))`,
+    [diurno, noturno],
+  )
 
-  const total = Number((await q1<{ n: string }>('SELECT COUNT(*) AS n FROM disciplina WHERE ativa'))!.n)
+  const total = Number(
+    (await q1<{ n: string }>(
+      'SELECT COUNT(*) AS n FROM disciplina WHERE ofertada_diurno OR ofertada_noturno',
+    ))!.n,
+  )
   res.json({ ok: true, ofertadas: total })
 })
 

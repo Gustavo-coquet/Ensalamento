@@ -103,6 +103,14 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
     return conflitantes
   }
 
+  /** Em quais turnos essa disciplina é ofertada este semestre — null se não achar (não restringe). */
+  function turnosDaDisciplina(disciplinaId) {
+    const d = disciplinas.find((x) => Number(x.id) === Number(disciplinaId))
+    if (!d) return null
+    const permitidos = [d.ofertadaDiurno && 'DIURNO', d.ofertadaNoturno && 'NOTURNO'].filter(Boolean)
+    return permitidos.length ? permitidos : null
+  }
+
   function desenha() {
     const conflitantes = indicesEmConflito()
 
@@ -140,7 +148,7 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
                 <select data-campo="disciplinaId" data-i="${i}">${opcoes(l.disciplinaId)}</select>
                 ${selectCursos(l.curso || 'CICLO_BASICO', `data-campo="curso" data-i="${i}"`)}
                 <select data-campo="dia" data-i="${i}">${opcoesDia(i)}</select>
-                ${selectTurnos(l.turno || 'NOTURNO', `data-campo="turno" data-i="${i}"`)}
+                ${selectTurnos(l.turno || 'NOTURNO', `data-campo="turno" data-i="${i}"`, turnosDaDisciplina(l.disciplinaId))}
                 <label class="caixa-mistura" title="Desmarque se os alunos fazem a prova na própria sala">
                   <input type="checkbox" data-campo="ensalar" data-i="${i}" ${l.ensalar === false ? '' : 'checked'} />
                 </label>
@@ -173,6 +181,15 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
       campo.onchange = () => {
         const linha = linhas[Number(campo.dataset.i)]
         linha[campo.dataset.campo] = campo.type === 'checkbox' ? campo.checked : campo.value
+
+        // trocou de disciplina e o turno atual não é ofertado nela? ajusta sozinho
+        if (campo.dataset.campo === 'disciplinaId') {
+          const permitidos = turnosDaDisciplina(linha.disciplinaId)
+          if (permitidos && !permitidos.includes(linha.turno || 'NOTURNO')) {
+            linha.turno = permitidos[0]
+          }
+        }
+
         if (['disciplinaId', 'dia', 'turno'].includes(campo.dataset.campo)) desenha()
       }
     })
@@ -255,7 +272,7 @@ async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
   const meus = new Map(turmas.map((t) => [t.numero, t]))
 
   const disciplinas = catalogo.disciplinas
-    .filter((d) => d.ativa !== false || meus.has(d.numero))
+    .filter((d) => d.ofertadaDiurno || d.ofertadaNoturno || meus.has(d.numero))
     .map((d) => ({
       ...d,
       bloqueada: !!d.professorId && !meus.has(d.numero),

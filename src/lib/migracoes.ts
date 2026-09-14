@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS disciplina (
 -- "ativa" = ofertada neste semestre. Nem toda disciplina abre todo semestre.
 ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ativa BOOLEAN NOT NULL DEFAULT TRUE;
 
+/* A oferta virou por turno: nem toda disciplina noturna abre de dia, e vice-versa.
+   Quem já estava "ativa" nasce ofertado à noite (era o único turno que existia até aqui);
+   ninguém nasce ofertado de dia — o admin liga manualmente quem precisar. */
+ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ofertada_diurno  BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ofertada_noturno BOOLEAN NOT NULL DEFAULT TRUE;
+
 CREATE TABLE IF NOT EXISTS turma (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   disciplina_id INT  NOT NULL REFERENCES disciplina(id) ON DELETE CASCADE,

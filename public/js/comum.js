@@ -121,10 +121,18 @@ function selectCursos(valorAtual, extra = '') {
   return `<select ${extra}>${opcoes.join('')}</select>`
 }
 
-function selectTurnos(valorAtual, extra = '') {
-  const opcoes = TURNOS.map(
-    (t) => `<option value="${t}"${valorAtual === t ? ' selected' : ''}>${ROTULO_TURNO[t]}</option>`,
-  )
+/**
+ * `permitidos`, se passado, restringe as opções aos turnos em que a disciplina escolhida
+ * é realmente ofertada — o turno atual nunca fica bloqueado, mesmo se não estiver na lista
+ * (evita esconder um valor que já estava salvo).
+ */
+function selectTurnos(valorAtual, extra = '', permitidos = null) {
+  const opcoes = TURNOS.map((t) => {
+    const bloqueado = Array.isArray(permitidos) && !permitidos.includes(t) && t !== valorAtual
+    return `<option value="${t}" ${t === valorAtual ? 'selected' : ''} ${bloqueado ? 'disabled' : ''}>${
+      ROTULO_TURNO[t]
+    }${bloqueado ? ' — não ofertada' : ''}</option>`
+  })
   return `<select ${extra}>${opcoes.join('')}</select>`
 }
 

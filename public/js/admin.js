@@ -316,17 +316,25 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
     <div class="cartao cantos" style="margin-top:22px"><div class="canto"></div>
       <div class="rotulo-secao" style="margin-bottom:6px">Oferta do semestre</div>
       <p class="pequeno texto-3" style="margin-bottom:12px">
-        Desmarque as disciplinas que <strong>não estão sendo oferecidas</strong> neste
-        semestre — elas somem da lista de escolha dos professores. Desmarcar não apaga
-        nada: turma que já existe continua como está.
+        Marque, por disciplina, em qual turno ela é oferecida este semestre — <strong>diurno</strong>,
+        <strong>noturno</strong>, os dois ou nenhum. Só o que estiver marcado aparece na lista de
+        escolha dos professores <em>naquele turno</em>. Desmarcar não apaga nada: turma que já
+        existe continua como está.
       </p>
 
-      <div class="linha-botoes" style="margin-bottom:12px">
-        <button class="secundaria" id="o-todas" style="padding:5px 12px;font-size:12px">marcar todas</button>
-        <button class="secundaria" id="o-nenhuma" style="padding:5px 12px;font-size:12px">desmarcar todas</button>
+      <div class="linha-botoes" style="margin-bottom:12px;flex-wrap:wrap">
+        <button class="secundaria" id="o-todas-d" style="padding:5px 12px;font-size:12px">marcar diurno (todas)</button>
+        <button class="secundaria" id="o-nenhuma-d" style="padding:5px 12px;font-size:12px">desmarcar diurno</button>
+        <button class="secundaria" id="o-todas-n" style="padding:5px 12px;font-size:12px">marcar noturno (todas)</button>
+        <button class="secundaria" id="o-nenhuma-n" style="padding:5px 12px;font-size:12px">desmarcar noturno</button>
         <span class="pequeno texto-3" id="o-contagem"></span>
       </div>
 
+      <div style="display:flex;gap:10px;align-items:center;padding:0 12px 6px;font-size:12px">
+        <span class="texto-3" style="flex:1">Disciplina</span>
+        <span class="texto-3" style="width:64px;text-align:center">Diurno</span>
+        <span class="texto-3" style="width:64px;text-align:center">Noturno</span>
+      </div>
       <div class="lista-oferta" id="o-lista"></div>
 
       <button class="acao" id="o-salvar" style="margin-top:14px">Salvar oferta</button>
@@ -358,48 +366,80 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
 
   /* ------------------------------ oferta do semestre ----------------------------- */
 
-  const ofertadas = new Set(disciplinas.filter((d) => d.ativa).map((d) => d.id))
+  const ofertadasDiurno = new Set(disciplinas.filter((d) => d.ofertadaDiurno).map((d) => d.id))
+  const ofertadasNoturno = new Set(disciplinas.filter((d) => d.ofertadaNoturno).map((d) => d.id))
+
+  function atualizaContagem() {
+    el('o-contagem').textContent =
+      `${ofertadasDiurno.size} diurno · ${ofertadasNoturno.size} noturno · de ${disciplinas.length} disciplinas`
+  }
 
   function desenhaOferta() {
     el('o-lista').innerHTML = disciplinas
       .map((d) => {
-        const marcada = ofertadas.has(d.id)
+        const diurno = ofertadasDiurno.has(d.id)
+        const noturno = ofertadasNoturno.has(d.id)
+        const fora = !diurno && !noturno
         return `
-          <label class="item-oferta ${marcada ? '' : 'fora'}">
-            <input type="checkbox" data-oferta="${d.id}" ${marcada ? 'checked' : ''} />
-            <span><span class="num">${d.numero}</span> ${esc(d.nome)}
+          <label class="item-oferta ${fora ? 'fora' : ''}" style="display:flex;gap:10px;align-items:center">
+            <span style="flex:1"><span class="num">${d.numero}</span> ${esc(d.nome)}
             ${d.turmas ? `<span class="pill neutro">${d.turmas} turma${d.turmas === 1 ? '' : 's'}</span>` : ''}</span>
+            <span style="width:64px;text-align:center">
+              <input type="checkbox" data-oferta-diurno="${d.id}" ${diurno ? 'checked' : ''} />
+            </span>
+            <span style="width:64px;text-align:center">
+              <input type="checkbox" data-oferta-noturno="${d.id}" ${noturno ? 'checked' : ''} />
+            </span>
           </label>`
       })
       .join('')
 
-    el('o-contagem').textContent = `${ofertadas.size} de ${disciplinas.length} ofertadas`
+    atualizaContagem()
 
-    el('o-lista').querySelectorAll('[data-oferta]').forEach((c) => {
+    el('o-lista').querySelectorAll('[data-oferta-diurno]').forEach((c) => {
       c.onchange = () => {
-        const id = Number(c.dataset.oferta)
-        c.checked ? ofertadas.add(id) : ofertadas.delete(id)
-        c.closest('.item-oferta').classList.toggle('fora', !c.checked)
-        el('o-contagem').textContent = `${ofertadas.size} de ${disciplinas.length} ofertadas`
+        const id = Number(c.dataset.ofertaDiurno)
+        c.checked ? ofertadasDiurno.add(id) : ofertadasDiurno.delete(id)
+        c.closest('.item-oferta').classList.toggle('fora', !ofertadasDiurno.has(id) && !ofertadasNoturno.has(id))
+        atualizaContagem()
+      }
+    })
+
+    el('o-lista').querySelectorAll('[data-oferta-noturno]').forEach((c) => {
+      c.onchange = () => {
+        const id = Number(c.dataset.ofertaNoturno)
+        c.checked ? ofertadasNoturno.add(id) : ofertadasNoturno.delete(id)
+        c.closest('.item-oferta').classList.toggle('fora', !ofertadasDiurno.has(id) && !ofertadasNoturno.has(id))
+        atualizaContagem()
       }
     })
   }
 
   desenhaOferta()
 
-  el('o-todas').onclick = () => {
-    disciplinas.forEach((d) => ofertadas.add(d.id))
+  el('o-todas-d').onclick = () => {
+    disciplinas.forEach((d) => ofertadasDiurno.add(d.id))
     desenhaOferta()
   }
-
-  el('o-nenhuma').onclick = () => {
-    ofertadas.clear()
+  el('o-nenhuma-d').onclick = () => {
+    ofertadasDiurno.clear()
+    desenhaOferta()
+  }
+  el('o-todas-n').onclick = () => {
+    disciplinas.forEach((d) => ofertadasNoturno.add(d.id))
+    desenhaOferta()
+  }
+  el('o-nenhuma-n').onclick = () => {
+    ofertadasNoturno.clear()
     desenhaOferta()
   }
 
   el('o-salvar').onclick = async () => {
     try {
-      const r = await api('/admin/disciplinas/ofertadas', { method: 'PUT', body: { ids: [...ofertadas] } })
+      const r = await api('/admin/disciplinas/ofertadas', {
+        method: 'PUT',
+        body: { diurno: [...ofertadasDiurno], noturno: [...ofertadasNoturno] },
+      })
       avisar(`${r.ofertadas} disciplina(s) na oferta deste semestre.`)
     } catch (e) {
       avisar(e.message, 'erro')
@@ -561,7 +601,9 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
           'Cada linha é uma disciplina com o seu próprio dia e turno. O que estiver com outro ' +
           'professor aparece com o nome dele e não pode ser escolhido.',
         disciplinas: disciplinas
-          .filter((d) => d.ativa !== false || p.itens.some((i) => i.disciplinaId === d.id))
+          .filter(
+            (d) => d.ofertadaDiurno || d.ofertadaNoturno || p.itens.some((i) => i.disciplinaId === d.id),
+          )
           .map((d) => ({
             ...d,
             bloqueada: !!d.professorId && d.professorId !== p.id,
