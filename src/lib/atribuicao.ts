@@ -28,16 +28,24 @@ export type ResultadoAtribuicao = {
 /** Aceita o que vem do navegador e devolve só o que é válido. */
 export function lerItens(entrada: unknown): ItemAtribuicao[] {
   const bruto = Array.isArray(entrada) ? entrada : []
-  const vistos = new Set<number>()
+  // Chave por disciplina+dia+turno (não só disciplina): o mesmo professor pode ter a
+  // mesma disciplina em duas vagas diferentes (ex.: manhã e noite), então dedup só por
+  // disciplinaId descartava a segunda vaga silenciosamente.
+  const vistos = new Set<string>()
   const saida: ItemAtribuicao[] = []
 
   for (const item of bruto) {
     const disciplinaId = Number((item as any)?.disciplinaId)
-    if (!Number.isInteger(disciplinaId) || disciplinaId <= 0 || vistos.has(disciplinaId)) continue
-    vistos.add(disciplinaId)
+    if (!Number.isInteger(disciplinaId) || disciplinaId <= 0) continue
 
     const diaBruto = String((item as any)?.dia ?? '').toUpperCase()
     const dia = (DIAS as readonly string[]).includes(diaBruto) ? (diaBruto as Dia) : null
+
+    const turno = validaTurno((item as any)?.turno) ?? 'NOTURNO'
+
+    const chave = `${disciplinaId}|${dia ?? ''}|${turno}`
+    if (vistos.has(chave)) continue
+    vistos.add(chave)
 
     const cursoBruto = String((item as any)?.curso ?? '').toUpperCase()
     const curso = (CURSOS as readonly string[]).includes(cursoBruto)
@@ -48,7 +56,7 @@ export function lerItens(entrada: unknown): ItemAtribuicao[] {
       disciplinaId,
       curso,
       dia,
-      turno: validaTurno((item as any)?.turno) ?? 'NOTURNO',
+      turno,
       ensalar: (item as any)?.ensalar !== false,
     })
   }
@@ -239,13 +247,16 @@ export async function atribuicaoAtual() {
   )
 
   return professores.map((p) => {
-    // se a mesma disciplina tiver duas turmas, mostra uma linha só
-    const vistas = new Set<number>()
+    // uma linha por vaga (disciplina+dia+turno) — a mesma disciplina pode aparecer em
+    // duas linhas quando o professor dá aula dela em dois turnos/dias diferentes.
+    const vistas = new Set<string>()
     const itens = []
 
     for (const t of turmas) {
-      if (t.professor_id !== p.id || vistas.has(t.disciplina_id)) continue
-      vistas.add(t.disciplina_id)
+      if (t.professor_id !== p.id) continue
+      const chave = `${t.disciplina_id}|${t.dia_semana ?? ''}|${t.turno}`
+      if (vistas.has(chave)) continue
+      vistas.add(chave)
       itens.push({
         disciplinaId: t.disciplina_id,
         disciplina: t.disciplina,
