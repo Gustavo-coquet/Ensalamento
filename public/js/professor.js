@@ -104,18 +104,19 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
   }
 
   function desenha() {
-    const usadas = new Set(linhas.map((l) => Number(l.disciplinaId)).filter(Boolean))
     const conflitantes = indicesEmConflito()
 
+    // Uma disciplina pode aparecer em mais de uma linha do MESMO professor —
+    // ele pode dar a mesma matéria de manhã numa turma e à noite em outra.
+    // Só bloqueia quando a disciplina já é de outra pessoa.
     const opcoes = (selecionada) =>
       ['<option value="">— escolher disciplina —</option>']
         .concat(
           disciplinas.map((d) => {
-            const jaNaLista = usadas.has(d.id) && Number(selecionada) !== d.id
             const deOutro = d.bloqueada && Number(selecionada) !== d.id
             const marca = deOutro ? ` — ${d.professorNome}` : ''
             return `<option value="${d.id}" ${Number(selecionada) === d.id ? 'selected' : ''} ${
-              jaNaLista || deOutro ? 'disabled' : ''
+              deOutro ? 'disabled' : ''
             }>${d.numero} — ${esc(d.nome)}${esc(marca)}</option>`
           }),
         )

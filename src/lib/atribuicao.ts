@@ -75,24 +75,32 @@ export async function atribuirDisciplinas(
        LEFT JOIN usuario u ON u.id = t.professor_id`,
   )
 
-  // uma disciplina pode ter mais de uma turma: vale a dele, senão a que tem dono
-  const porDisciplina = new Map<number, any>()
+  /* Pool das turmas que já são do professor, por disciplina. Uma disciplina pode ter mais
+     de uma turma dele (ex.: turma de manhã e turma à noite) — cada item que ele mandar
+     reaproveita uma turma do pool (é só reagendar); o que sobrar no pool no final é porque
+     ele não mandou mais nenhum item pra essa disciplina, então perde o professor. */
+  const poolPorDisciplina = new Map<number, any[]>()
   for (const t of existentes) {
-    const atual = porDisciplina.get(t.disciplina_id)
-    const melhor =
-      !atual ||
-      t.professor_id === professorId ||
-      (!atual.professor_id && t.professor_id && atual.professor_id !== professorId)
-    if (melhor) porDisciplina.set(t.disciplina_id, t)
+    if (t.professor_id !== professorId) continue
+    if (!poolPorDisciplina.has(t.disciplina_id)) poolPorDisciplina.set(t.disciplina_id, [])
+    poolPorDisciplina.get(t.disciplina_id)!.push(t)
+  }
+
+  /* Vaga = disciplina + dia + turno. Se ESSA vaga exata já é de outro professor, ninguém
+     mais pode pegá-la — mas o mesmo professor pode ter a mesma disciplina em mais de uma
+     vaga (uma de manhã, outra à noite, por exemplo), então o choque é por vaga, não mais
+     pela disciplina inteira. */
+  const donoDaVaga = new Map<string, any>()
+  for (const t of existentes) {
+    if (!t.professor_id || t.professor_id === professorId) continue
+    donoDaVaga.set(`${t.disciplina_id}|${t.dia_semana ?? ''}|${t.turno}`, t)
   }
 
   const catalogo = new Map<number, any>(
     (await q<any>('SELECT id, nome, ativa FROM disciplina')).map((d) => [d.id, d]),
   )
 
-  const jaDele = new Set(
-    existentes.filter((t) => t.professor_id === professorId).map((t) => t.disciplina_id),
-  )
+  const jaDele = new Set(poolPorDisciplina.keys())
 
   const ocupadas: ResultadoAtribuicao['ocupadas'] = []
   const naoOfertadas: string[] = []
@@ -110,9 +118,9 @@ export async function atribuirDisciplinas(
       continue
     }
 
-    const turma = porDisciplina.get(item.disciplinaId)
-    if (turma && turma.professor_id && turma.professor_id !== professorId) {
-      ocupadas.push({ disciplina: turma.disciplina, professor: turma.dono })
+    const vaga = donoDaVaga.get(`${item.disciplinaId}|${item.dia ?? ''}|${item.turno}`)
+    if (vaga) {
+      ocupadas.push({ disciplina: vaga.disciplina, professor: vaga.dono })
       continue
     }
 
@@ -130,16 +138,14 @@ export async function atribuirDisciplinas(
     paraVincular.push(item)
   }
 
-  const escolhidas = new Set(paraVincular.map((i) => i.disciplinaId))
-  const paraLiberar = existentes
-    .filter((t) => t.professor_id === professorId && !escolhidas.has(t.disciplina_id))
-    .map((t) => t.id)
-
   let criadas = 0
+  let paraLiberar: string[] = []
 
   await transacao(async (exec) => {
     for (const item of paraVincular) {
-      const turma = porDisciplina.get(item.disciplinaId)
+      // reaproveita uma turma que já é dele nessa disciplina, se sobrar alguma no pool
+      const pool = poolPorDisciplina.get(item.disciplinaId)
+      const turma = pool && pool.length ? pool.shift() : null
       if (turma) {
         await exec(
           `UPDATE turma SET professor_id = $1, curso = $2, dia_semana = $3, turno = $4,
@@ -157,6 +163,8 @@ export async function atribuirDisciplinas(
       }
     }
 
+    // sobrou turma do professor sem item correspondente: ele não pediu mais essa vaga
+    paraLiberar = [...poolPorDisciplina.values()].flat().map((t) => t.id)
     if (paraLiberar.length) {
       await exec(
         'UPDATE turma SET professor_id = NULL, atualizado_em = now() WHERE id = ANY($1::uuid[])',
