@@ -89,6 +89,29 @@ function esc(texto) {
 
 function el(id) { return document.getElementById(id) }
 
+const CONECTIVOS_NOME = new Set(['de', 'da', 'do', 'das', 'dos', 'e'])
+
+/**
+ * Padroniza a exibição de um nome próprio em Title Case, não importa como a pessoa
+ * digitou ("joão da silva", "JOÃO DA SILVA" ou "João Da Silva" viram "João da Silva").
+ * Não mexe no que está salvo no banco — é só pra tela.
+ */
+function nomeExibicao(nome) {
+  return String(nome ?? '')
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((palavra, i) =>
+      i > 0 && CONECTIVOS_NOME.has(palavra)
+        ? palavra
+        : palavra
+            .split('-')
+            .map((parte) => (parte ? parte.charAt(0).toUpperCase() + parte.slice(1) : parte))
+            .join('-'),
+    )
+    .join(' ')
+}
+
 /** Minúsculas sem acento — para buscar disciplina sem se preocupar com "ç" e "á". */
 function chaveSimples(texto) {
   return String(texto ?? '')

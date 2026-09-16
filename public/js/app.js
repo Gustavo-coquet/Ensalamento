@@ -81,7 +81,7 @@ async function rotear() {
 function mostrarApp() {
   el('tela-login').classList.add('oculto')
   el('app').classList.remove('oculto')
-  el('topo-nome').textContent = usuarioAtual.nome
+  el('topo-nome').textContent = nomeExibicao(usuarioAtual.nome)
   el('topo-papel').textContent = ehAdmin() ? 'administrador' : 'professor'
   rotear()
 }

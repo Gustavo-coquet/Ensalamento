@@ -193,6 +193,11 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(30, 58, 95, .5); }
 tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--painel-2); }
 
+/* Quadro de turmas: uma faixa de cor por período, intercalando clara/escura. */
+.quadro-turmas tbody tr.linha-periodo-a td { background: rgba(79, 209, 197, 0.05); }
+.quadro-turmas tbody tr.linha-periodo-b td { background: rgba(79, 209, 197, 0.13); }
+.quadro-turmas tbody tr:hover td { background: var(--painel-2); }
+
 /* ---------------------------------- pills -------------------------------- */
 
 .pill {

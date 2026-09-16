@@ -122,7 +122,7 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
         .concat(
           disciplinas.map((d) => {
             const deOutro = d.bloqueada && Number(selecionada) !== d.id
-            const marca = deOutro ? ` — ${d.professorNome}` : ''
+            const marca = deOutro ? ` — ${nomeExibicao(d.professorNome)}` : ''
             return `<option value="${d.id}" ${Number(selecionada) === d.id ? 'selected' : ''} ${
               deOutro ? 'disabled' : ''
             }>${d.numero} — ${esc(d.nome)}${esc(marca)}</option>`
@@ -244,7 +244,7 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
           })),
         )
         if (r.ocupadas?.length) {
-          avisar(`Já tem dono: ${r.ocupadas.map((o) => `${o.disciplina} (${o.professor})`).join(', ')}`, 'info')
+          avisar(`Já tem dono: ${r.ocupadas.map((o) => `${o.disciplina} (${nomeExibicao(o.professor)})`).join(', ')}`, 'info')
         } else if (r.naoOfertadas?.length) {
           avisar(`Fora da oferta deste semestre: ${r.naoOfertadas.join(', ')}`, 'info')
         } else if (r.conflitos?.length) {

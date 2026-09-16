@@ -77,59 +77,52 @@ async function viewPainel() {
 /* ------------------------------ quadro de turmas ----------------------------- */
 
 /**
- * Monta o quadro visual (período × dia da semana) de um curso. O Ciclo Básico entra
- * nos dois quadros — a mesma turma pode aparecer em Eng. Civil e em Eng. Produção,
- * com o mesmo professor repetido, porque quem preenche escolhe o curso na hora.
+ * Monta o quadro visual (período × dia da semana) de um curso, num turno só. O Ciclo
+ * Básico entra nos quadros dos dois cursos — a mesma turma pode aparecer em Eng. Civil
+ * e em Eng. Produção, com o mesmo professor repetido, porque quem preenche escolhe o
+ * curso na hora. Cada período tem sua própria faixa de cor, intercalando clara/escura,
+ * pra ficar fácil de acompanhar a linha com o olho.
  */
-function montaQuadroCurso(turmas, curso, rotuloCurso) {
+function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
   const indice = indicePeriodos(curso)
-  const relevantes = turmas.filter((t) => t.curso === 'CICLO_BASICO' || t.curso === curso)
+  const relevantes = turmas.filter((t) => (t.curso === 'CICLO_BASICO' || t.curso === curso) && t.turno === turno)
 
-  // período -> turno -> dia -> turma[]
+  // período -> dia -> turma[]
   const porPeriodo = new Map()
   for (const t of relevantes) {
     const periodo = indice.get(chaveSimples(t.disciplina))
     if (!periodo) continue
-    if (!porPeriodo.has(periodo)) porPeriodo.set(periodo, { DIURNO: new Map(), NOTURNO: new Map() })
-    const bucket = porPeriodo.get(periodo)[t.turno]
-    if (!bucket) continue
+    if (!porPeriodo.has(periodo)) porPeriodo.set(periodo, new Map())
+    const bucket = porPeriodo.get(periodo)
     const dia = t.diaSemana || ''
     if (!bucket.has(dia)) bucket.set(dia, [])
     bucket.get(dia).push(t)
   }
 
   const periodos = [...porPeriodo.keys()].sort((a, b) => a - b)
-  const linhas = []
+  if (!periodos.length) return ''
 
-  for (const periodo of periodos) {
-    const bucket = porPeriodo.get(periodo)
-    for (const turno of TURNOS) {
-      const porDia = bucket[turno]
-      if (!porDia.size) continue
-      linhas.push(`<tr>
-        <td class="texto-2" style="white-space:nowrap">
-          <strong>${periodo}º Período</strong><br /><span class="texto-3 pequeno">${ROTULO_TURNO[turno]}</span>
-        </td>
-        ${DIAS.map((dia) => {
-          const itens = porDia.get(dia) || []
-          if (!itens.length) return '<td></td>'
-          return `<td>${itens
-            .map(
-              (t) => `<div style="margin-bottom:6px">
-                <strong>${t.professor ? esc(t.professor.nome) : '<span class="texto-3">sem professor</span>'}</strong><br />
-                <span class="texto-3 pequeno">${esc(t.disciplina)}</span>
-              </div>`,
-            )
-            .join('')}</td>`
-        }).join('')}
-      </tr>`)
-    }
-  }
+  const linhas = periodos.map((periodo, i) => {
+    const porDia = porPeriodo.get(periodo)
+    return `<tr class="${i % 2 === 0 ? 'linha-periodo-a' : 'linha-periodo-b'}">
+      <td class="texto-2" style="white-space:nowrap"><strong>${periodo}º Período</strong></td>
+      ${DIAS.map((dia) => {
+        const itens = porDia.get(dia) || []
+        if (!itens.length) return '<td></td>'
+        return `<td>${itens
+          .map(
+            (t) => `<div style="margin-bottom:6px">
+              <strong>${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'}</strong><br />
+              <span class="texto-3 pequeno">${esc(t.disciplina)}</span>
+            </div>`,
+          )
+          .join('')}</td>`
+      }).join('')}
+    </tr>`
+  })
 
-  if (!linhas.length) return ''
-
-  return `<div class="cartao cantos" style="margin-bottom:22px; overflow-x:auto"><div class="canto"></div>
-    <div class="rotulo-secao" style="margin-bottom:14px">${esc(rotuloCurso)}</div>
+  return `<div class="cartao cantos quadro-turmas" style="margin-bottom:22px; overflow-x:auto"><div class="canto"></div>
+    <div class="rotulo-secao" style="margin-bottom:14px">${esc(rotuloCurso)} · ${ROTULO_TURNO[turno]}</div>
     <table>
       <thead><tr><th></th>${DIAS.map((d) => `<th>${esc(ROTULO_DIA[d].slice(0, 3))}</th>`).join('')}</tr></thead>
       <tbody>${linhas.join('')}</tbody>
@@ -137,12 +130,14 @@ function montaQuadroCurso(turmas, curso, rotuloCurso) {
   </div>`
 }
 
-/** Um quadro pra Eng. Civil e outro pra Eng. Produção — o Ciclo Básico repete nos dois. */
+/** Quatro quadros: Civil-manhã, Produção-manhã, Civil-noite, Produção-noite. */
 function montaQuadroTurmas(turmas) {
-  const civil = montaQuadroCurso(turmas, 'ENG_CIVIL', 'Quadro — Eng. Civil')
-  const producao = montaQuadroCurso(turmas, 'ENG_PRODUCAO', 'Quadro — Eng. de Produção')
-  if (!civil && !producao) return ''
-  return civil + producao
+  return [
+    montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'DIURNO', 'Eng. Civil'),
+    montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'DIURNO', 'Eng. de Produção'),
+    montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'NOTURNO', 'Eng. Civil'),
+    montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'NOTURNO', 'Eng. de Produção'),
+  ].join('')
 }
 
 /* ---------------------------------- turmas ---------------------------------- */
@@ -180,7 +175,7 @@ async function viewAdminTurmas() {
                     return `<tr style="cursor:pointer" data-abrir="${t.id}">
                       <td class="texto-3">${t.numero}</td>
                       <td>${esc(t.disciplina)}</td>
-                      <td class="texto-2">${t.professor ? esc(t.professor.nome) : '<span class="pill alerta">sem professor</span>'}</td>
+                      <td class="texto-2">${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="pill alerta">sem professor</span>'}</td>
                       <td class="texto-2 pequeno">${esc(ROTULO_CURSO[t.curso] || t.curso)}</td>
                       <td class="texto-2 pequeno">${t.diaSemana ? esc(ROTULO_DIA[t.diaSemana]) : '—'}</td>
                       <td class="texto-2 pequeno">${esc(ROTULO_TURNO[t.turno] || t.turno)}</td>
@@ -555,7 +550,7 @@ function desenhaImportacao(r) {
             .map(
               (l) => `<tr>
                 <td class="texto-3">${l.linha}</td>
-                <td>${esc(l.professor)}</td>
+                <td>${esc(nomeExibicao(l.professor))}</td>
                 <td class="texto-2 pequeno">${esc(l.email)}</td>
                 <td class="texto-2 pequeno mono">${esc(l.senha || '')}</td>
                 <td>${marca(l)}</td>
@@ -608,7 +603,7 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
                       const aberto = abertoId === p.id
                       return `
                         <tr>
-                          <td><strong>${esc(p.nome)}</strong>${
+                          <td><strong>${esc(nomeExibicao(p.nome))}</strong>${
                             p.papel === 'ADMIN' ? ' <span class="pill ok">admin</span>' : ''
                           }</td>
                           <td class="texto-2 pequeno">${esc(p.email)}</td>
