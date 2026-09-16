@@ -74,6 +74,77 @@ async function viewPainel() {
     </div>`
 }
 
+/* ------------------------------ quadro de turmas ----------------------------- */
+
+/**
+ * Monta o quadro visual (período × dia da semana) de um curso. O Ciclo Básico entra
+ * nos dois quadros — a mesma turma pode aparecer em Eng. Civil e em Eng. Produção,
+ * com o mesmo professor repetido, porque quem preenche escolhe o curso na hora.
+ */
+function montaQuadroCurso(turmas, curso, rotuloCurso) {
+  const indice = indicePeriodos(curso)
+  const relevantes = turmas.filter((t) => t.curso === 'CICLO_BASICO' || t.curso === curso)
+
+  // período -> turno -> dia -> turma[]
+  const porPeriodo = new Map()
+  for (const t of relevantes) {
+    const periodo = indice.get(chaveSimples(t.disciplina))
+    if (!periodo) continue
+    if (!porPeriodo.has(periodo)) porPeriodo.set(periodo, { DIURNO: new Map(), NOTURNO: new Map() })
+    const bucket = porPeriodo.get(periodo)[t.turno]
+    if (!bucket) continue
+    const dia = t.diaSemana || ''
+    if (!bucket.has(dia)) bucket.set(dia, [])
+    bucket.get(dia).push(t)
+  }
+
+  const periodos = [...porPeriodo.keys()].sort((a, b) => a - b)
+  const linhas = []
+
+  for (const periodo of periodos) {
+    const bucket = porPeriodo.get(periodo)
+    for (const turno of TURNOS) {
+      const porDia = bucket[turno]
+      if (!porDia.size) continue
+      linhas.push(`<tr>
+        <td class="texto-2" style="white-space:nowrap">
+          <strong>${periodo}º Período</strong><br /><span class="texto-3 pequeno">${ROTULO_TURNO[turno]}</span>
+        </td>
+        ${DIAS.map((dia) => {
+          const itens = porDia.get(dia) || []
+          if (!itens.length) return '<td></td>'
+          return `<td>${itens
+            .map(
+              (t) => `<div style="margin-bottom:6px">
+                <strong>${t.professor ? esc(t.professor.nome) : '<span class="texto-3">sem professor</span>'}</strong><br />
+                <span class="texto-3 pequeno">${esc(t.disciplina)}</span>
+              </div>`,
+            )
+            .join('')}</td>`
+        }).join('')}
+      </tr>`)
+    }
+  }
+
+  if (!linhas.length) return ''
+
+  return `<div class="cartao cantos" style="margin-bottom:22px; overflow-x:auto"><div class="canto"></div>
+    <div class="rotulo-secao" style="margin-bottom:14px">${esc(rotuloCurso)}</div>
+    <table>
+      <thead><tr><th></th>${DIAS.map((d) => `<th>${esc(ROTULO_DIA[d].slice(0, 3))}</th>`).join('')}</tr></thead>
+      <tbody>${linhas.join('')}</tbody>
+    </table>
+  </div>`
+}
+
+/** Um quadro pra Eng. Civil e outro pra Eng. Produção — o Ciclo Básico repete nos dois. */
+function montaQuadroTurmas(turmas) {
+  const civil = montaQuadroCurso(turmas, 'ENG_CIVIL', 'Quadro — Eng. Civil')
+  const producao = montaQuadroCurso(turmas, 'ENG_PRODUCAO', 'Quadro — Eng. de Produção')
+  if (!civil && !producao) return ''
+  return civil + producao
+}
+
 /* ---------------------------------- turmas ---------------------------------- */
 
 async function viewAdminTurmas() {
@@ -86,6 +157,8 @@ async function viewAdminTurmas() {
       As turmas nascem quando um professor escolhe as disciplinas dele — em
       <em>Cadastro em lote</em> você faz isso por ele, se precisar.
     </p>
+
+    ${montaQuadroTurmas(turmas)}
 
     ${
       turmas.length

@@ -62,6 +62,25 @@ const DISCIPLINAS = [
   'Tecnologia e Processos Construtivos',
   'Topografia',
   'Transporte e Logística',
+  // Adicionadas depois, pro quadro por período — ficam no fim de propósito: os "numero"
+  // das disciplinas de cima não podem mudar (turma referencia o id, mas o ON CONFLICT
+  // do seed casa por numero, então inserir no meio bagunçaria os nomes já gravados).
+  'Optativa Complementar',
+  'Optativa Profissional',
+  'Atividade Complementar',
+  'Atividade Integradora I',
+  'Atividade Integradora II',
+  'Atividade Integradora III',
+  'Atividade Integradora IV',
+  'Atividade Integradora V',
+  'Atividade Integradora VI',
+  'Atividade Integradora VII',
+  'Atividade Integradora VIII',
+  'Atividade Integradora IX',
+  'Atividade Integradora X',
+  'Trabalho de Conclusão de Curso I',
+  'Trabalho de Conclusão de Curso II',
+  'Estágio Supervisionado',
 ]
 
 /**
