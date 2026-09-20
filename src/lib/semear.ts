@@ -65,9 +65,19 @@ const DISCIPLINAS = [
   // Adicionadas depois, pro quadro por período — ficam no fim de propósito: os "numero"
   // das disciplinas de cima não podem mudar (turma referencia o id, mas o ON CONFLICT
   // do seed casa por numero, então inserir no meio bagunçaria os nomes já gravados).
+  // Atividades Integradoras, TCC I/II e Estágio Supervisionado foram tiradas da lista
+  // (ver DISCIPLINAS_REMOVIDAS) — não entram como disciplina de verdade.
   'Optativa Complementar',
   'Optativa Profissional',
   'Atividade Complementar',
+]
+
+/**
+ * Nomes que chegaram a entrar em DISCIPLINAS numa versão anterior e foram removidos —
+ * a limpeza em `migracoes.ts` apaga essas linhas do banco (só quando nenhuma turma usa
+ * a disciplina, pra nunca derrubar um vínculo já feito).
+ */
+export const DISCIPLINAS_REMOVIDAS = [
   'Atividade Integradora I',
   'Atividade Integradora II',
   'Atividade Integradora III',
