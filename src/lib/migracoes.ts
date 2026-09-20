@@ -130,16 +130,17 @@ DELETE FROM ensalamento e
    SELECT 1 FROM sala s JOIN sala_aluno sa ON sa.sala_id = s.id WHERE s.ensalamento_id = e.id
  );
 
-/* Atividades Integradoras, TCC I/II e Estágio Supervisionado entraram na lista de
-   disciplinas por engano (não são matéria de verdade) e saíram do seed — apaga do banco
-   quem sobrou, mas só se ninguém pegou uma turma delas (não derruba vínculo já feito). */
+/* Atividades Integradoras, TCC I/II, Estágio Supervisionado e Atividade Complementar
+   entraram na lista de disciplinas por engano (não são matéria de verdade) e saíram do
+   seed — apaga do banco quem sobrou, mas só se ninguém pegou uma turma delas (não
+   derruba vínculo já feito). */
 DELETE FROM disciplina d
  WHERE d.nome = ANY(ARRAY[
          'Atividade Integradora I', 'Atividade Integradora II', 'Atividade Integradora III',
          'Atividade Integradora IV', 'Atividade Integradora V', 'Atividade Integradora VI',
          'Atividade Integradora VII', 'Atividade Integradora VIII', 'Atividade Integradora IX',
          'Atividade Integradora X', 'Trabalho de Conclusão de Curso I',
-         'Trabalho de Conclusão de Curso II', 'Estágio Supervisionado'
+         'Trabalho de Conclusão de Curso II', 'Estágio Supervisionado', 'Atividade Complementar'
        ])
    AND NOT EXISTS (SELECT 1 FROM turma t WHERE t.disciplina_id = d.id);
 `

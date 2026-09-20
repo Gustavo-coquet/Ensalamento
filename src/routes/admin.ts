@@ -148,6 +148,23 @@ rotasAdmin.put('/disciplinas/ofertadas', async (req, res) => {
     [diurno, noturno, ensalarDiurno, ensalarNoturno],
   )
 
+  // "Optativa Complementar" e "Optativa Profissional" mudam de assunto a cada semestre —
+  // o texto digitado vira o complemento do nome ("Optativa Complementar — Libras"). Só
+  // mexe no nome de quem já é uma dessas duas (nome-base antes do " — "), pra ninguém
+  // conseguir renomear outra disciplina por aqui.
+  const complementos = Array.isArray(req.body?.complementos) ? req.body.complementos : []
+  for (const c of complementos) {
+    const id = Number(c?.id)
+    if (!Number.isInteger(id)) continue
+    const texto = String(c?.texto ?? '').trim().slice(0, 80)
+    await q(
+      `UPDATE disciplina
+          SET nome = split_part(nome, ' — ', 1) || CASE WHEN $2 <> '' THEN ' — ' || $2 ELSE '' END
+        WHERE id = $1 AND split_part(nome, ' — ', 1) IN ('Optativa Complementar', 'Optativa Profissional')`,
+      [id, texto],
+    )
+  }
+
   // propaga pra todas as turmas já existentes daquelas disciplinas — sem isso a tela
   // mudaria a "preferência" mas as provas já marcadas continuariam com o valor antigo.
   const afetadas = await q<any>(

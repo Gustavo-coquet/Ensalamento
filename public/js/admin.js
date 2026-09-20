@@ -90,7 +90,9 @@ function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
   // período -> dia -> turma[]
   const porPeriodo = new Map()
   for (const t of relevantes) {
-    const periodo = indice.get(chaveSimples(t.disciplina))
+    // disciplina com nome completado (ex.: "Optativa Complementar — Libras") ainda
+    // precisa achar o período pelo nome-base, antes do " — ".
+    const periodo = indice.get(chaveSimples(t.disciplina.split(' — ')[0]))
     if (!periodo) continue
     if (!porPeriodo.has(periodo)) porPeriodo.set(periodo, new Map())
     const bucket = porPeriodo.get(periodo)
@@ -390,7 +392,9 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
         existe continua como está. Ao lado de cada turno tem uma caixinha
         <strong class="cor-mistura-diurno">mistura</strong> — decide se as turmas <em>daquele turno</em>
         dessa disciplina entram no sorteio de salas. Só aparece se o turno estiver ofertado
-        (não dá pra misturar turma que não existe).
+        (não dá pra misturar turma que não existe). Nas optativas, o campinho ao lado do nome
+        é o assunto deste semestre — o que você digitar vira o final do nome dela (ex.:
+        "Optativa Complementar — Libras").
       </p>
 
       <div class="linha-botoes" style="margin-bottom:12px;flex-wrap:wrap">
@@ -457,16 +461,40 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
   }
   disciplinas.forEach((d) => corrigeMistura(d.id))
 
+  // "Optativa Complementar" e "Optativa Profissional" mudam de assunto a cada semestre —
+  // um campinho ao lado deixa digitar o nome específico, que vira o final do nome dela
+  // ("Optativa Complementar — Libras"). O nome digitado é guardado aqui, não em d.nome,
+  // até salvar.
+  function nomeBase(nome) {
+    const i = nome.indexOf(' — ')
+    return i === -1 ? nome : nome.slice(0, i)
+  }
+  const OPTATIVAS = new Set(['Optativa Complementar', 'Optativa Profissional'])
+  const complementos = new Map(
+    disciplinas
+      .filter((d) => OPTATIVAS.has(nomeBase(d.nome)))
+      .map((d) => [d.id, d.nome.includes(' — ') ? d.nome.slice(d.nome.indexOf(' — ') + 3) : '']),
+  )
+
   function desenhaOferta() {
     el('o-lista').innerHTML = disciplinas
       .map((d) => {
         const diurno = ofertadasDiurno.has(d.id)
         const noturno = ofertadasNoturno.has(d.id)
         const fora = !diurno && !noturno
+        const editavel = complementos.has(d.id)
         return `
           <label class="item-oferta ${fora ? 'fora' : ''}" style="display:flex;gap:10px;align-items:center">
-            <span style="flex:1"><span class="num">${d.numero}</span> ${esc(d.nome)}
-            ${d.turmas ? `<span class="pill neutro">${d.turmas} turma${d.turmas === 1 ? '' : 's'}</span>` : ''}</span>
+            <span style="flex:1;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span><span class="num">${d.numero}</span> ${esc(editavel ? nomeBase(d.nome) : d.nome)}
+              ${d.turmas ? `<span class="pill neutro">${d.turmas} turma${d.turmas === 1 ? '' : 's'}</span>` : ''}</span>
+              ${
+                editavel
+                  ? `<input type="text" data-complemento="${d.id}" value="${esc(complementos.get(d.id))}"
+                       placeholder="nome deste semestre" style="flex:1;min-width:140px;max-width:260px;padding:5px 9px;font-size:13px" />`
+                  : ''
+              }
+            </span>
             <span style="width:64px;text-align:center">
               <input type="checkbox" data-oferta-diurno="${d.id}" ${diurno ? 'checked' : ''} />
             </span>
@@ -526,6 +554,10 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
         c.checked ? misturaNoturno.add(id) : misturaNoturno.delete(id)
       }
     })
+
+    el('o-lista').querySelectorAll('[data-complemento]').forEach((inp) => {
+      inp.oninput = () => complementos.set(Number(inp.dataset.complemento), inp.value)
+    })
   }
 
   desenhaOferta()
@@ -558,6 +590,7 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
           noturno: [...ofertadasNoturno],
           ensalarDiurno: [...misturaDiurno],
           ensalarNoturno: [...misturaNoturno],
+          complementos: [...complementos].map(([id, texto]) => ({ id, texto: texto.trim() })),
         },
       })
       avisar(`${r.ofertadas} disciplina(s) na oferta deste semestre.`)

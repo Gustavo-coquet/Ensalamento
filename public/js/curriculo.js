@@ -3,8 +3,8 @@
    4º) é o mesmo pros dois cursos; Eng. Civil e Eng. Produção divergem a partir do 5º.
    Uma disciplina do ciclo básico aparece nos dois quadros (mesmo professor repetido).
 
-   Atividades Integradoras, TCC I/II e Estágio Supervisionado não entram — não são
-   matéria de verdade, não têm professor nem turma. */
+   Atividades Integradoras, TCC I/II, Estágio Supervisionado e Atividade Complementar não
+   entram — não são matéria de verdade, não têm professor nem turma. */
 
 const GRADE_CICLO_BASICO = [
   ['Física Geral e Experimental I', 'Cálculo Básico', 'Algebra Linear e Geometria Analítica',
@@ -26,7 +26,7 @@ const GRADE_ENG_CIVIL = [
     'Topografia', 'Mecânica dos Solos II'],
   ['Tecnologia e Processos Construtivos', 'Saneamento e Abastecimento', 'Estruturas de Concreto II',
     'Estradas', 'Fundações'],
-  ['Optativa Profissional', 'Estruturas de Aço e Madeira', 'Transporte e Logística', 'Atividade Complementar'],
+  ['Optativa Profissional', 'Estruturas de Aço e Madeira', 'Transporte e Logística'],
   ['Pontes'],
 ]
 
@@ -39,7 +39,7 @@ const GRADE_ENG_PRODUCAO = [
     'Projeto de Sistemas Produtivos (PO3)', 'Custos e Preços'],
   ['Planejamento e Controle da Produção', 'Ergonomia e Segurança do Trabalho', 'Gestão de Processos Produtivos',
     'Optativa Profissional', 'Mercado Financeiro'],
-  ['Arranjo Físico e Industrial', 'Sistemas Produtivos', 'Controle Estatístico de Processos', 'Atividade Complementar'],
+  ['Arranjo Físico e Industrial', 'Sistemas Produtivos', 'Controle Estatístico de Processos'],
   ['Automação da Produção'],
 ]
 

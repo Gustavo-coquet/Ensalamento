@@ -65,11 +65,12 @@ const DISCIPLINAS = [
   // Adicionadas depois, pro quadro por período — ficam no fim de propósito: os "numero"
   // das disciplinas de cima não podem mudar (turma referencia o id, mas o ON CONFLICT
   // do seed casa por numero, então inserir no meio bagunçaria os nomes já gravados).
-  // Atividades Integradoras, TCC I/II e Estágio Supervisionado foram tiradas da lista
-  // (ver DISCIPLINAS_REMOVIDAS) — não entram como disciplina de verdade.
+  // Atividades Integradoras, TCC I/II, Estágio Supervisionado e Atividade Complementar
+  // foram tiradas da lista (ver DISCIPLINAS_REMOVIDAS) — não entram como disciplina de
+  // verdade. As duas optativas ficam — o nome específico de cada semestre é digitado
+  // à parte, na tela de Oferta (vira "Optativa Complementar — <o que for digitado>").
   'Optativa Complementar',
   'Optativa Profissional',
-  'Atividade Complementar',
 ]
 
 /**
@@ -91,6 +92,7 @@ export const DISCIPLINAS_REMOVIDAS = [
   'Trabalho de Conclusão de Curso I',
   'Trabalho de Conclusão de Curso II',
   'Estágio Supervisionado',
+  'Atividade Complementar',
 ]
 
 /**
@@ -107,9 +109,12 @@ export async function semear({ silencioso = false } = {}) {
   const jaTem = Number((await q1<{ n: string }>('SELECT COUNT(*) AS n FROM disciplina'))!.n)
   if (jaTem < DISCIPLINAS.length) {
     for (let i = 0; i < DISCIPLINAS.length; i++) {
+      // Não sobrescreve o nome se ele já tiver um complemento digitado à parte (ex.:
+      // "Optativa Complementar — Libras") — só re-seeda quando ainda está no nome-base.
       await q(
         `INSERT INTO disciplina (numero, nome) VALUES ($1, $2)
-         ON CONFLICT (numero) DO UPDATE SET nome = EXCLUDED.nome`,
+         ON CONFLICT (numero) DO UPDATE SET nome = EXCLUDED.nome
+         WHERE NOT (disciplina.nome LIKE EXCLUDED.nome || ' — %')`,
         [i + 1, DISCIPLINAS[i]],
       )
     }
