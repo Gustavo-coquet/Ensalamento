@@ -414,6 +414,15 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
       </div>
       <div class="lista-oferta" id="o-lista"></div>
 
+      <div class="linha-botoes" style="margin-top:10px">
+        <button class="secundaria" id="o-add-complementar" style="padding:6px 14px;font-size:12px">
+          + Optativa Complementar
+        </button>
+        <button class="secundaria" id="o-add-profissional" style="padding:6px 14px;font-size:12px">
+          + Optativa Profissional
+        </button>
+      </div>
+
       <button class="acao" id="o-salvar" style="margin-top:14px">Salvar oferta</button>
     </div>`
 
@@ -491,7 +500,12 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
               ${
                 editavel
                   ? `<input type="text" data-complemento="${d.id}" value="${esc(complementos.get(d.id))}"
-                       placeholder="nome deste semestre" style="flex:1;min-width:140px;max-width:260px;padding:5px 9px;font-size:13px" />`
+                       placeholder="nome deste semestre" style="flex:1;min-width:140px;max-width:260px;padding:5px 9px;font-size:13px" />
+                     ${
+                       d.turmas
+                         ? ''
+                         : `<button type="button" class="mini" data-remover-optativa="${d.id}" title="Remover esta optativa">×</button>`
+                     }`
                   : ''
               }
             </span>
@@ -558,9 +572,41 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
     el('o-lista').querySelectorAll('[data-complemento]').forEach((inp) => {
       inp.oninput = () => complementos.set(Number(inp.dataset.complemento), inp.value)
     })
+
+    el('o-lista').querySelectorAll('[data-remover-optativa]').forEach((b) => {
+      b.onclick = async () => {
+        const id = Number(b.dataset.removerOptativa)
+        if (!confirm('Remover esta optativa da lista?')) return
+        try {
+          await api(`/admin/disciplinas/${id}`, { method: 'DELETE' })
+        } catch (e) {
+          return avisar(e.message, 'erro')
+        }
+        const i = disciplinas.findIndex((d) => d.id === id)
+        if (i !== -1) disciplinas.splice(i, 1)
+        ofertadasDiurno.delete(id)
+        ofertadasNoturno.delete(id)
+        misturaDiurno.delete(id)
+        misturaNoturno.delete(id)
+        complementos.delete(id)
+        desenhaOferta()
+      }
+    })
   }
 
   desenhaOferta()
+
+  async function acrescentaOptativa(tipo) {
+    const { disciplina } = await api('/admin/disciplinas/optativa', { method: 'POST', body: { tipo } })
+    disciplinas.push(disciplina)
+    complementos.set(disciplina.id, disciplina.nome.slice(disciplina.nome.indexOf(' — ') + 3))
+    // nasce sem turno ofertado e com mistura ligada por padrão — igual toda disciplina nova
+    if (disciplina.ensalarDiurno !== false) misturaDiurno.add(disciplina.id)
+    if (disciplina.ensalarNoturno !== false) misturaNoturno.add(disciplina.id)
+    desenhaOferta()
+  }
+  el('o-add-complementar').onclick = () => acrescentaOptativa('COMPLEMENTAR')
+  el('o-add-profissional').onclick = () => acrescentaOptativa('PROFISSIONAL')
 
   el('o-todas-d').onclick = () => {
     disciplinas.forEach((d) => ofertadasDiurno.add(d.id))

@@ -188,6 +188,48 @@ rotasAdmin.put('/disciplinas/ofertadas', async (req, res) => {
   res.json({ ok: true, ofertadas: total })
 })
 
+/**
+ * Cria mais uma optativa do mesmo tipo — pode ter várias "Optativa Complementar" ou
+ * "Optativa Profissional" rodando no mesmo semestre. Nasce com um nome temporário
+ * único ("Optativa Complementar — #61"); o admin troca o texto no campinho e salva a
+ * oferta pra dar o nome de verdade.
+ */
+rotasAdmin.post('/disciplinas/optativa', async (req, res) => {
+  const tipo = req.body?.tipo === 'PROFISSIONAL' ? 'Optativa Profissional' : 'Optativa Complementar'
+
+  const [d] = await q<any>(
+    `INSERT INTO disciplina (numero, nome)
+     SELECT COALESCE(MAX(numero), 0) + 1, $1 || ' — #' || (COALESCE(MAX(numero), 0) + 1)
+       FROM disciplina
+     RETURNING id, numero, nome,
+               ofertada_diurno  AS "ofertadaDiurno",
+               ofertada_noturno AS "ofertadaNoturno",
+               ensalar_diurno   AS "ensalarDiurno",
+               ensalar_noturno  AS "ensalarNoturno"`,
+    [tipo],
+  )
+  res.status(201).json({ disciplina: { ...d, turmas: 0 } })
+})
+
+/** Remove uma optativa criada a mais — só deixa apagar se ninguém pegou turma dela. */
+rotasAdmin.delete('/disciplinas/:id', async (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isInteger(id)) return res.status(400).json({ erro: 'Id inválido' })
+
+  const apagada = await q<any>(
+    `DELETE FROM disciplina d
+      WHERE d.id = $1
+        AND split_part(d.nome, ' — ', 1) IN ('Optativa Complementar', 'Optativa Profissional')
+        AND NOT EXISTS (SELECT 1 FROM turma t WHERE t.disciplina_id = d.id)
+      RETURNING id`,
+    [id],
+  )
+  if (!apagada.length) {
+    return res.status(400).json({ erro: 'Só dá pra remover optativa sem turma vinculada.' })
+  }
+  res.json({ ok: true })
+})
+
 /* -------------------------------- Usuários -------------------------------- */
 
 rotasAdmin.get('/usuarios', async (_req, res) => {
