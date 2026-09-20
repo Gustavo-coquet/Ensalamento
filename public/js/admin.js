@@ -387,8 +387,10 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
         Marque, por disciplina, em qual turno ela é oferecida este semestre — <strong>diurno</strong>,
         <strong>noturno</strong>, os dois ou nenhum. Só o que estiver marcado aparece na lista de
         escolha dos professores <em>naquele turno</em>. Desmarcar não apaga nada: turma que já
-        existe continua como está. A caixinha <strong>Mistura</strong> decide se as turmas dessa
-        disciplina entram no sorteio de salas — vale pra todo mundo que leciona ela.
+        existe continua como está. Ao lado de cada turno tem uma caixinha
+        <strong class="cor-mistura-diurno">mistura</strong> — decide se as turmas <em>daquele turno</em>
+        dessa disciplina entram no sorteio de salas. Só aparece se o turno estiver ofertado
+        (não dá pra misturar turma que não existe).
       </p>
 
       <div class="linha-botoes" style="margin-bottom:12px;flex-wrap:wrap">
@@ -396,16 +398,15 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
         <button class="secundaria" id="o-nenhuma-d" style="padding:5px 12px;font-size:12px">desmarcar diurno</button>
         <button class="secundaria" id="o-todas-n" style="padding:5px 12px;font-size:12px">marcar noturno (todas)</button>
         <button class="secundaria" id="o-nenhuma-n" style="padding:5px 12px;font-size:12px">desmarcar noturno</button>
-        <button class="secundaria" id="o-todas-e" style="padding:5px 12px;font-size:12px">marcar mistura (todas)</button>
-        <button class="secundaria" id="o-nenhuma-e" style="padding:5px 12px;font-size:12px">desmarcar mistura</button>
         <span class="pequeno texto-3" id="o-contagem"></span>
       </div>
 
       <div style="display:flex;gap:10px;align-items:center;padding:0 12px 6px;font-size:12px">
-        <span class="texto-3" style="width:56px;text-align:center">Mistura</span>
         <span class="texto-3" style="flex:1">Disciplina</span>
         <span class="texto-3" style="width:64px;text-align:center">Diurno</span>
+        <span class="texto-3 cor-mistura-diurno" style="width:64px;text-align:center">Mistura</span>
         <span class="texto-3" style="width:64px;text-align:center">Noturno</span>
+        <span class="texto-3 cor-mistura-noturno" style="width:64px;text-align:center">Mistura</span>
       </div>
       <div class="lista-oferta" id="o-lista"></div>
 
@@ -440,33 +441,53 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
 
   const ofertadasDiurno = new Set(disciplinas.filter((d) => d.ofertadaDiurno).map((d) => d.id))
   const ofertadasNoturno = new Set(disciplinas.filter((d) => d.ofertadaNoturno).map((d) => d.id))
-  const naMistura = new Set(disciplinas.filter((d) => d.ensalarPadrao !== false).map((d) => d.id))
+  const misturaDiurno = new Set(disciplinas.filter((d) => d.ensalarDiurno !== false).map((d) => d.id))
+  const misturaNoturno = new Set(disciplinas.filter((d) => d.ensalarNoturno !== false).map((d) => d.id))
 
   function atualizaContagem() {
     el('o-contagem').textContent =
-      `${ofertadasDiurno.size} diurno · ${ofertadasNoturno.size} noturno · ${naMistura.size} na mistura · de ${disciplinas.length} disciplinas`
+      `${ofertadasDiurno.size} diurno · ${ofertadasNoturno.size} noturno · de ${disciplinas.length} disciplinas`
   }
+
+  // Não dá pra ensalar turno que a disciplina nem oferece — some com a marcação
+  // pra ninguém confundir "desligado" com "não existe".
+  function corrigeMistura(id) {
+    if (!ofertadasDiurno.has(id)) misturaDiurno.delete(id)
+    if (!ofertadasNoturno.has(id)) misturaNoturno.delete(id)
+  }
+  disciplinas.forEach((d) => corrigeMistura(d.id))
 
   function desenhaOferta() {
     el('o-lista').innerHTML = disciplinas
       .map((d) => {
         const diurno = ofertadasDiurno.has(d.id)
         const noturno = ofertadasNoturno.has(d.id)
-        const mistura = naMistura.has(d.id)
         const fora = !diurno && !noturno
         return `
           <label class="item-oferta ${fora ? 'fora' : ''}" style="display:flex;gap:10px;align-items:center">
-            <span style="width:56px;text-align:center">
-              <input type="checkbox" data-oferta-mistura="${d.id}" ${mistura ? 'checked' : ''}
-                     title="Entra no sorteio de salas" />
-            </span>
             <span style="flex:1"><span class="num">${d.numero}</span> ${esc(d.nome)}
             ${d.turmas ? `<span class="pill neutro">${d.turmas} turma${d.turmas === 1 ? '' : 's'}</span>` : ''}</span>
             <span style="width:64px;text-align:center">
               <input type="checkbox" data-oferta-diurno="${d.id}" ${diurno ? 'checked' : ''} />
             </span>
             <span style="width:64px;text-align:center">
+              ${
+                diurno
+                  ? `<input type="checkbox" class="chk-mistura-diurno" data-mistura-diurno="${d.id}"
+                       ${misturaDiurno.has(d.id) ? 'checked' : ''} title="Entra no sorteio de salas (diurno)" />`
+                  : ''
+              }
+            </span>
+            <span style="width:64px;text-align:center">
               <input type="checkbox" data-oferta-noturno="${d.id}" ${noturno ? 'checked' : ''} />
+            </span>
+            <span style="width:64px;text-align:center">
+              ${
+                noturno
+                  ? `<input type="checkbox" class="chk-mistura-noturno" data-mistura-noturno="${d.id}"
+                       ${misturaNoturno.has(d.id) ? 'checked' : ''} title="Entra no sorteio de salas (noturno)" />`
+                  : ''
+              }
             </span>
           </label>`
       })
@@ -478,8 +499,8 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
       c.onchange = () => {
         const id = Number(c.dataset.ofertaDiurno)
         c.checked ? ofertadasDiurno.add(id) : ofertadasDiurno.delete(id)
-        c.closest('.item-oferta').classList.toggle('fora', !ofertadasDiurno.has(id) && !ofertadasNoturno.has(id))
-        atualizaContagem()
+        corrigeMistura(id)
+        desenhaOferta()
       }
     })
 
@@ -487,16 +508,22 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
       c.onchange = () => {
         const id = Number(c.dataset.ofertaNoturno)
         c.checked ? ofertadasNoturno.add(id) : ofertadasNoturno.delete(id)
-        c.closest('.item-oferta').classList.toggle('fora', !ofertadasDiurno.has(id) && !ofertadasNoturno.has(id))
-        atualizaContagem()
+        corrigeMistura(id)
+        desenhaOferta()
       }
     })
 
-    el('o-lista').querySelectorAll('[data-oferta-mistura]').forEach((c) => {
+    el('o-lista').querySelectorAll('[data-mistura-diurno]').forEach((c) => {
       c.onchange = () => {
-        const id = Number(c.dataset.ofertaMistura)
-        c.checked ? naMistura.add(id) : naMistura.delete(id)
-        atualizaContagem()
+        const id = Number(c.dataset.misturaDiurno)
+        c.checked ? misturaDiurno.add(id) : misturaDiurno.delete(id)
+      }
+    })
+
+    el('o-lista').querySelectorAll('[data-mistura-noturno]').forEach((c) => {
+      c.onchange = () => {
+        const id = Number(c.dataset.misturaNoturno)
+        c.checked ? misturaNoturno.add(id) : misturaNoturno.delete(id)
       }
     })
   }
@@ -509,6 +536,7 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
   }
   el('o-nenhuma-d').onclick = () => {
     ofertadasDiurno.clear()
+    disciplinas.forEach((d) => corrigeMistura(d.id))
     desenhaOferta()
   }
   el('o-todas-n').onclick = () => {
@@ -517,14 +545,7 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
   }
   el('o-nenhuma-n').onclick = () => {
     ofertadasNoturno.clear()
-    desenhaOferta()
-  }
-  el('o-todas-e').onclick = () => {
-    disciplinas.forEach((d) => naMistura.add(d.id))
-    desenhaOferta()
-  }
-  el('o-nenhuma-e').onclick = () => {
-    naMistura.clear()
+    disciplinas.forEach((d) => corrigeMistura(d.id))
     desenhaOferta()
   }
 
@@ -532,7 +553,12 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
     try {
       const r = await api('/admin/disciplinas/ofertadas', {
         method: 'PUT',
-        body: { diurno: [...ofertadasDiurno], noturno: [...ofertadasNoturno], ensalar: [...naMistura] },
+        body: {
+          diurno: [...ofertadasDiurno],
+          noturno: [...ofertadasNoturno],
+          ensalarDiurno: [...misturaDiurno],
+          ensalarNoturno: [...misturaNoturno],
+        },
       })
       avisar(`${r.ofertadas} disciplina(s) na oferta deste semestre.`)
     } catch (e) {

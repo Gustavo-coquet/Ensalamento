@@ -106,7 +106,9 @@ export async function atribuirDisciplinas(
 
   const catalogo = new Map<number, any>(
     (
-      await q<any>('SELECT id, nome, ofertada_diurno, ofertada_noturno, ensalar_padrao FROM disciplina')
+      await q<any>(
+        'SELECT id, nome, ofertada_diurno, ofertada_noturno, ensalar_diurno, ensalar_noturno FROM disciplina',
+      )
     ).map((d) => [d.id, d]),
   )
 
@@ -156,9 +158,10 @@ export async function atribuirDisciplinas(
 
   await transacao(async (exec) => {
     for (const item of paraVincular) {
-      // "entra na mistura" agora é decidido por disciplina (tela de Oferta do semestre),
-      // não mais por turma — todas as turmas dela seguem o mesmo valor.
-      const ensalar = catalogo.get(item.disciplinaId)?.ensalar_padrao !== false
+      // "entra na mistura" agora é decidido por disciplina e por turno (tela de Oferta
+      // do semestre) — a turma diurna dessa disciplina pode entrar e a noturna não.
+      const disc = catalogo.get(item.disciplinaId)
+      const ensalar = (item.turno === 'DIURNO' ? disc?.ensalar_diurno : disc?.ensalar_noturno) !== false
 
       // reaproveita uma turma que já é dele nessa disciplina, se sobrar alguma no pool
       const pool = poolPorDisciplina.get(item.disciplinaId)
@@ -224,7 +227,8 @@ export async function disciplinasComDono() {
               d.id, d.numero, d.nome,
               d.ofertada_diurno  AS "ofertadaDiurno",
               d.ofertada_noturno AS "ofertadaNoturno",
-              d.ensalar_padrao   AS "ensalarPadrao",
+              d.ensalar_diurno   AS "ensalarDiurno",
+              d.ensalar_noturno  AS "ensalarNoturno",
               t.professor_id       AS "professorId",
               COALESCE(u.nome, '') AS "professorNome"
          FROM disciplina d

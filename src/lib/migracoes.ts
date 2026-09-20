@@ -33,8 +33,24 @@ ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ofertada_diurno  BOOLEAN NOT NUL
 ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ofertada_noturno BOOLEAN NOT NULL DEFAULT TRUE;
 
 /* "Entra na mistura" virou uma decisão por disciplina (todas as turmas dela seguem
-   junto), marcada na mesma tela de Oferta do semestre — não é mais por turma. */
-ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ensalar_padrao BOOLEAN NOT NULL DEFAULT TRUE;
+   junto), marcada na mesma tela de Oferta do semestre — não é mais por turma. E é por
+   turno: a turma diurna de uma disciplina pode entrar na mistura e a noturna não. */
+ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ensalar_diurno  BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ensalar_noturno BOOLEAN NOT NULL DEFAULT TRUE;
+
+/* Migração de uma versão anterior que tinha um "ensalar_padrao" só (sem separar
+   turno) — reaproveita o valor pros dois turnos e depois some com a coluna velha.
+   Só executa na primeira vez: da segunda em diante a coluna já não existe mais. */
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'disciplina' AND column_name = 'ensalar_padrao'
+  ) THEN
+    UPDATE disciplina SET ensalar_diurno = ensalar_padrao, ensalar_noturno = ensalar_padrao;
+    ALTER TABLE disciplina DROP COLUMN ensalar_padrao;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS turma (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),

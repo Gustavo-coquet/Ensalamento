@@ -111,7 +111,8 @@ rotasAdmin.get('/disciplinas', async (_req, res) => {
     `SELECT d.id, d.numero, d.nome,
             d.ofertada_diurno  AS "ofertadaDiurno",
             d.ofertada_noturno AS "ofertadaNoturno",
-            d.ensalar_padrao   AS "ensalarPadrao",
+            d.ensalar_diurno   AS "ensalarDiurno",
+            d.ensalar_noturno  AS "ensalarNoturno",
             (SELECT COUNT(*)::int FROM turma t WHERE t.disciplina_id = d.id) AS turmas
        FROM disciplina d ORDER BY d.numero ASC`,
   )
@@ -124,28 +125,38 @@ rotasAdmin.get('/disciplinas', async (_req, res) => {
  * aparecem para o professor escolher naquele turno. O que já foi atribuído continua
  * valendo — desmarcar não apaga turma.
  *
- * "Entra na mistura" também é decidido aqui, por disciplina — todas as turmas dela
- * (de qualquer professor) passam a valer o mesmo, na hora.
+ * "Entra na mistura" também é decidido aqui, por disciplina e por turno — a turma
+ * diurna de uma disciplina pode entrar na mistura e a noturna dela não, por exemplo.
+ * Todas as turmas daquele turno, de qualquer professor, passam a valer o mesmo na hora.
  */
 rotasAdmin.put('/disciplinas/ofertadas', async (req, res) => {
   const diurno = Array.isArray(req.body?.diurno) ? req.body.diurno.map(Number).filter(Number.isInteger) : []
   const noturno = Array.isArray(req.body?.noturno) ? req.body.noturno.map(Number).filter(Number.isInteger) : []
-  const ensalar = Array.isArray(req.body?.ensalar) ? req.body.ensalar.map(Number).filter(Number.isInteger) : []
+  const ensalarDiurno = Array.isArray(req.body?.ensalarDiurno)
+    ? req.body.ensalarDiurno.map(Number).filter(Number.isInteger)
+    : []
+  const ensalarNoturno = Array.isArray(req.body?.ensalarNoturno)
+    ? req.body.ensalarNoturno.map(Number).filter(Number.isInteger)
+    : []
 
   await q(
     `UPDATE disciplina
         SET ofertada_diurno  = (id = ANY($1::int[])),
             ofertada_noturno = (id = ANY($2::int[])),
-            ensalar_padrao   = (id = ANY($3::int[]))`,
-    [diurno, noturno, ensalar],
+            ensalar_diurno   = (id = ANY($3::int[])),
+            ensalar_noturno  = (id = ANY($4::int[]))`,
+    [diurno, noturno, ensalarDiurno, ensalarNoturno],
   )
 
   // propaga pra todas as turmas já existentes daquelas disciplinas — sem isso a tela
   // mudaria a "preferência" mas as provas já marcadas continuariam com o valor antigo.
   const afetadas = await q<any>(
-    `UPDATE turma t SET ensalar = d.ensalar_padrao, atualizado_em = now()
+    `UPDATE turma t
+        SET ensalar = CASE WHEN t.turno = 'DIURNO' THEN d.ensalar_diurno ELSE d.ensalar_noturno END,
+            atualizado_em = now()
        FROM disciplina d
-      WHERE d.id = t.disciplina_id AND t.ensalar IS DISTINCT FROM d.ensalar_padrao
+      WHERE d.id = t.disciplina_id
+        AND t.ensalar IS DISTINCT FROM (CASE WHEN t.turno = 'DIURNO' THEN d.ensalar_diurno ELSE d.ensalar_noturno END)
       RETURNING t.dia_semana, t.turno`,
   )
   if (afetadas.length) {

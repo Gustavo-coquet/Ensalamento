@@ -193,6 +193,13 @@ td { padding: 9px 12px; border-bottom: 1px solid rgba(30, 58, 95, .5); }
 tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--painel-2); }
 
+/* Oferta do semestre: a caixinha de mistura tem uma cor pro turno diurno e outra pro
+   noturno, pra ficar fácil diferenciar de relance quando as duas aparecem lado a lado. */
+.chk-mistura-diurno { accent-color: var(--acento); }
+.chk-mistura-noturno { accent-color: var(--alerta); }
+.cor-mistura-diurno { color: var(--acento) !important; }
+.cor-mistura-noturno { color: var(--alerta) !important; }
+
 /* Quadro de turmas: uma faixa de cor por período, intercalando clara/escura. */
 .quadro-turmas tbody tr.linha-periodo-a td { background: rgba(79, 209, 197, 0.05); }
 .quadro-turmas tbody tr.linha-periodo-b td { background: rgba(79, 209, 197, 0.13); }
