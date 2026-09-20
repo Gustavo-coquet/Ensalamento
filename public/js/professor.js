@@ -137,7 +137,7 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
       <div class="linhas-disc">
         <div class="cabecalho-disc pequeno texto-3">
           <span>Disciplina</span><span>Curso</span><span>Dia da prova</span>
-          <span>Turno</span><span>Na mistura</span><span></span>
+          <span>Turno</span><span></span>
         </div>
         ${
           linhas.length
@@ -149,9 +149,6 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
                 ${selectCursos(l.curso || 'CICLO_BASICO', `data-campo="curso" data-i="${i}"`)}
                 <select data-campo="dia" data-i="${i}">${opcoesDia(i)}</select>
                 ${selectTurnos(l.turno || 'NOTURNO', `data-campo="turno" data-i="${i}"`, turnosDaDisciplina(l.disciplinaId))}
-                <label class="caixa-mistura" title="Desmarque se os alunos fazem a prova na própria sala">
-                  <input type="checkbox" data-campo="ensalar" data-i="${i}" ${l.ensalar === false ? '' : 'checked'} />
-                </label>
                 <button class="mini" data-remover-linha="${i}" title="Remover">×</button>
               </div>`,
                 )
@@ -209,7 +206,6 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
         curso: ultima?.curso || 'CICLO_BASICO',
         dia: '',
         turno: ultima?.turno || 'NOTURNO',
-        ensalar: true,
       })
       desenha()
     }
@@ -240,7 +236,6 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
             curso: l.curso || 'CICLO_BASICO',
             dia: l.dia || null,
             turno: l.turno,
-            ensalar: l.ensalar !== false,
           })),
         )
         if (r.ocupadas?.length) {
@@ -287,7 +282,6 @@ async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
         curso: t.curso || 'CICLO_BASICO',
         dia: t.diaSemana || '',
         turno: t.turno || 'NOTURNO',
-        ensalar: t.ensalar !== false,
       }
     })
 
@@ -300,8 +294,8 @@ async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
     maximo: catalogo.maximo || 10,
     titulo: 'Minhas disciplinas',
     ajuda:
-      'Uma linha por disciplina que você leciona, com o curso, o dia, o turno e se ela entra ' +
-      'na mistura de salas (desmarque se os alunos fazem a prova na própria sala). ' +
+      'Uma linha por disciplina que você leciona, com o curso, o dia e o turno. Se ela entra na ' +
+      'mistura de salas quem decide agora é a coordenação, na tela de Oferta do semestre. ' +
       'Disciplina que já é de outro professor aparece com o nome dele e não pode ser escolhida. ' +
       'Tirar uma linha devolve a disciplina para a lista de disponíveis.',
     salvar: (itens) => api('/turmas/minhas-disciplinas', { method: 'POST', body: { itens } }),

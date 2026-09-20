@@ -363,7 +363,7 @@ body.carregando input { cursor: progress; }
   display: grid;
   grid-template-columns:
     minmax(200px, 3fr) minmax(130px, 1.4fr) minmax(120px, 1.3fr)
-    minmax(100px, 1fr) 74px 36px;
+    minmax(100px, 1fr) 36px;
   gap: 8px;
   align-items: center;
 }
@@ -391,8 +391,8 @@ body.carregando input { cursor: progress; }
 @media (max-width: 1100px) {
   .cabecalho-disc { display: none; }
   .linha-disc {
-    grid-template-columns: 1fr 1fr 60px 36px;
-    grid-template-areas: 'disc disc disc rem' 'curso curso mist rem' 'dia turno mist rem';
+    grid-template-columns: 1fr 1fr 36px;
+    grid-template-areas: 'disc disc rem' 'curso curso rem' 'dia turno rem';
     padding-bottom: 12px;
     border-bottom: 1px solid var(--linha);
   }
@@ -400,7 +400,6 @@ body.carregando input { cursor: progress; }
   .linha-disc > *:nth-child(2) { grid-area: curso; }
   .linha-disc > *:nth-child(3) { grid-area: dia; }
   .linha-disc > *:nth-child(4) { grid-area: turno; }
-  .linha-disc > .caixa-mistura { grid-area: mist; }
   .linha-disc > button { grid-area: rem; }
 }
 

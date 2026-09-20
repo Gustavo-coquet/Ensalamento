@@ -387,7 +387,8 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
         Marque, por disciplina, em qual turno ela é oferecida este semestre — <strong>diurno</strong>,
         <strong>noturno</strong>, os dois ou nenhum. Só o que estiver marcado aparece na lista de
         escolha dos professores <em>naquele turno</em>. Desmarcar não apaga nada: turma que já
-        existe continua como está.
+        existe continua como está. A caixinha <strong>Mistura</strong> decide se as turmas dessa
+        disciplina entram no sorteio de salas — vale pra todo mundo que leciona ela.
       </p>
 
       <div class="linha-botoes" style="margin-bottom:12px;flex-wrap:wrap">
@@ -395,10 +396,13 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
         <button class="secundaria" id="o-nenhuma-d" style="padding:5px 12px;font-size:12px">desmarcar diurno</button>
         <button class="secundaria" id="o-todas-n" style="padding:5px 12px;font-size:12px">marcar noturno (todas)</button>
         <button class="secundaria" id="o-nenhuma-n" style="padding:5px 12px;font-size:12px">desmarcar noturno</button>
+        <button class="secundaria" id="o-todas-e" style="padding:5px 12px;font-size:12px">marcar mistura (todas)</button>
+        <button class="secundaria" id="o-nenhuma-e" style="padding:5px 12px;font-size:12px">desmarcar mistura</button>
         <span class="pequeno texto-3" id="o-contagem"></span>
       </div>
 
       <div style="display:flex;gap:10px;align-items:center;padding:0 12px 6px;font-size:12px">
+        <span class="texto-3" style="width:56px;text-align:center">Mistura</span>
         <span class="texto-3" style="flex:1">Disciplina</span>
         <span class="texto-3" style="width:64px;text-align:center">Diurno</span>
         <span class="texto-3" style="width:64px;text-align:center">Noturno</span>
@@ -436,10 +440,11 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
 
   const ofertadasDiurno = new Set(disciplinas.filter((d) => d.ofertadaDiurno).map((d) => d.id))
   const ofertadasNoturno = new Set(disciplinas.filter((d) => d.ofertadaNoturno).map((d) => d.id))
+  const naMistura = new Set(disciplinas.filter((d) => d.ensalarPadrao !== false).map((d) => d.id))
 
   function atualizaContagem() {
     el('o-contagem').textContent =
-      `${ofertadasDiurno.size} diurno · ${ofertadasNoturno.size} noturno · de ${disciplinas.length} disciplinas`
+      `${ofertadasDiurno.size} diurno · ${ofertadasNoturno.size} noturno · ${naMistura.size} na mistura · de ${disciplinas.length} disciplinas`
   }
 
   function desenhaOferta() {
@@ -447,9 +452,14 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
       .map((d) => {
         const diurno = ofertadasDiurno.has(d.id)
         const noturno = ofertadasNoturno.has(d.id)
+        const mistura = naMistura.has(d.id)
         const fora = !diurno && !noturno
         return `
           <label class="item-oferta ${fora ? 'fora' : ''}" style="display:flex;gap:10px;align-items:center">
+            <span style="width:56px;text-align:center">
+              <input type="checkbox" data-oferta-mistura="${d.id}" ${mistura ? 'checked' : ''}
+                     title="Entra no sorteio de salas" />
+            </span>
             <span style="flex:1"><span class="num">${d.numero}</span> ${esc(d.nome)}
             ${d.turmas ? `<span class="pill neutro">${d.turmas} turma${d.turmas === 1 ? '' : 's'}</span>` : ''}</span>
             <span style="width:64px;text-align:center">
@@ -481,6 +491,14 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
         atualizaContagem()
       }
     })
+
+    el('o-lista').querySelectorAll('[data-oferta-mistura]').forEach((c) => {
+      c.onchange = () => {
+        const id = Number(c.dataset.ofertaMistura)
+        c.checked ? naMistura.add(id) : naMistura.delete(id)
+        atualizaContagem()
+      }
+    })
   }
 
   desenhaOferta()
@@ -501,12 +519,20 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
     ofertadasNoturno.clear()
     desenhaOferta()
   }
+  el('o-todas-e').onclick = () => {
+    disciplinas.forEach((d) => naMistura.add(d.id))
+    desenhaOferta()
+  }
+  el('o-nenhuma-e').onclick = () => {
+    naMistura.clear()
+    desenhaOferta()
+  }
 
   el('o-salvar').onclick = async () => {
     try {
       const r = await api('/admin/disciplinas/ofertadas', {
         method: 'PUT',
-        body: { diurno: [...ofertadasDiurno], noturno: [...ofertadasNoturno] },
+        body: { diurno: [...ofertadasDiurno], noturno: [...ofertadasNoturno], ensalar: [...naMistura] },
       })
       avisar(`${r.ofertadas} disciplina(s) na oferta deste semestre.`)
     } catch (e) {

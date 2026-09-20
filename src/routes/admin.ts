@@ -11,7 +11,7 @@ import {
   MAX_DISCIPLINAS,
 } from '../lib/atribuicao'
 import { paraCSV } from '../lib/csv'
-import { carregarEnsalamento, gerarEnsalamento } from '../lib/ensalamento'
+import { carregarEnsalamento, gerarEnsalamento, invalidarEnsalamento } from '../lib/ensalamento'
 import {
   CURSOS,
   DIAS,
@@ -111,6 +111,7 @@ rotasAdmin.get('/disciplinas', async (_req, res) => {
     `SELECT d.id, d.numero, d.nome,
             d.ofertada_diurno  AS "ofertadaDiurno",
             d.ofertada_noturno AS "ofertadaNoturno",
+            d.ensalar_padrao   AS "ensalarPadrao",
             (SELECT COUNT(*)::int FROM turma t WHERE t.disciplina_id = d.id) AS turmas
        FROM disciplina d ORDER BY d.numero ASC`,
   )
@@ -122,17 +123,34 @@ rotasAdmin.get('/disciplinas', async (_req, res) => {
  * de dia, só à noite, nos dois ou em nenhum. Só as disciplinas marcadas em cada turno
  * aparecem para o professor escolher naquele turno. O que já foi atribuído continua
  * valendo — desmarcar não apaga turma.
+ *
+ * "Entra na mistura" também é decidido aqui, por disciplina — todas as turmas dela
+ * (de qualquer professor) passam a valer o mesmo, na hora.
  */
 rotasAdmin.put('/disciplinas/ofertadas', async (req, res) => {
   const diurno = Array.isArray(req.body?.diurno) ? req.body.diurno.map(Number).filter(Number.isInteger) : []
   const noturno = Array.isArray(req.body?.noturno) ? req.body.noturno.map(Number).filter(Number.isInteger) : []
+  const ensalar = Array.isArray(req.body?.ensalar) ? req.body.ensalar.map(Number).filter(Number.isInteger) : []
 
   await q(
     `UPDATE disciplina
         SET ofertada_diurno  = (id = ANY($1::int[])),
-            ofertada_noturno = (id = ANY($2::int[]))`,
-    [diurno, noturno],
+            ofertada_noturno = (id = ANY($2::int[])),
+            ensalar_padrao   = (id = ANY($3::int[]))`,
+    [diurno, noturno, ensalar],
   )
+
+  // propaga pra todas as turmas já existentes daquelas disciplinas — sem isso a tela
+  // mudaria a "preferência" mas as provas já marcadas continuariam com o valor antigo.
+  const afetadas = await q<any>(
+    `UPDATE turma t SET ensalar = d.ensalar_padrao, atualizado_em = now()
+       FROM disciplina d
+      WHERE d.id = t.disciplina_id AND t.ensalar IS DISTINCT FROM d.ensalar_padrao
+      RETURNING t.dia_semana, t.turno`,
+  )
+  if (afetadas.length) {
+    await invalidarEnsalamento(afetadas.map((t) => ({ dia: t.dia_semana, turno: t.turno })))
+  }
 
   const total = Number(
     (await q1<{ n: string }>(

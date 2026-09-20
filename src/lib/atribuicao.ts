@@ -105,7 +105,9 @@ export async function atribuirDisciplinas(
   }
 
   const catalogo = new Map<number, any>(
-    (await q<any>('SELECT id, nome, ofertada_diurno, ofertada_noturno FROM disciplina')).map((d) => [d.id, d]),
+    (
+      await q<any>('SELECT id, nome, ofertada_diurno, ofertada_noturno, ensalar_padrao FROM disciplina')
+    ).map((d) => [d.id, d]),
   )
 
   const ocupadas: ResultadoAtribuicao['ocupadas'] = []
@@ -154,6 +156,10 @@ export async function atribuirDisciplinas(
 
   await transacao(async (exec) => {
     for (const item of paraVincular) {
+      // "entra na mistura" agora é decidido por disciplina (tela de Oferta do semestre),
+      // não mais por turma — todas as turmas dela seguem o mesmo valor.
+      const ensalar = catalogo.get(item.disciplinaId)?.ensalar_padrao !== false
+
       // reaproveita uma turma que já é dele nessa disciplina, se sobrar alguma no pool
       const pool = poolPorDisciplina.get(item.disciplinaId)
       const turma = pool && pool.length ? pool.shift() : null
@@ -162,13 +168,13 @@ export async function atribuirDisciplinas(
           `UPDATE turma SET professor_id = $1, curso = $2, dia_semana = $3, turno = $4,
                             ensalar = $5, atualizado_em = now()
             WHERE id = $6`,
-          [professorId, item.curso, item.dia, item.turno, item.ensalar, turma.id],
+          [professorId, item.curso, item.dia, item.turno, ensalar, turma.id],
         )
       } else {
         await exec(
           `INSERT INTO turma (disciplina_id, professor_id, curso, dia_semana, turno, ensalar)
            VALUES ($1,$2,$3,$4,$5,$6)`,
-          [item.disciplinaId, professorId, item.curso, item.dia, item.turno, item.ensalar],
+          [item.disciplinaId, professorId, item.curso, item.dia, item.turno, ensalar],
         )
         criadas++
       }
@@ -218,6 +224,7 @@ export async function disciplinasComDono() {
               d.id, d.numero, d.nome,
               d.ofertada_diurno  AS "ofertadaDiurno",
               d.ofertada_noturno AS "ofertadaNoturno",
+              d.ensalar_padrao   AS "ensalarPadrao",
               t.professor_id       AS "professorId",
               COALESCE(u.nome, '') AS "professorNome"
          FROM disciplina d

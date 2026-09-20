@@ -32,6 +32,10 @@ ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ativa BOOLEAN NOT NULL DEFAULT T
 ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ofertada_diurno  BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ofertada_noturno BOOLEAN NOT NULL DEFAULT TRUE;
 
+/* "Entra na mistura" virou uma decisão por disciplina (todas as turmas dela seguem
+   junto), marcada na mesma tela de Oferta do semestre — não é mais por turma. */
+ALTER TABLE disciplina ADD COLUMN IF NOT EXISTS ensalar_padrao BOOLEAN NOT NULL DEFAULT TRUE;
+
 CREATE TABLE IF NOT EXISTS turma (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   disciplina_id INT  NOT NULL REFERENCES disciplina(id) ON DELETE CASCADE,
@@ -109,6 +113,19 @@ DELETE FROM ensalamento e
  WHERE NOT EXISTS (
    SELECT 1 FROM sala s JOIN sala_aluno sa ON sa.sala_id = s.id WHERE s.ensalamento_id = e.id
  );
+
+/* Atividades Integradoras, TCC I/II e Estágio Supervisionado entraram na lista de
+   disciplinas por engano (não são matéria de verdade) e saíram do seed — apaga do banco
+   quem sobrou, mas só se ninguém pegou uma turma delas (não derruba vínculo já feito). */
+DELETE FROM disciplina d
+ WHERE d.nome = ANY(ARRAY[
+         'Atividade Integradora I', 'Atividade Integradora II', 'Atividade Integradora III',
+         'Atividade Integradora IV', 'Atividade Integradora V', 'Atividade Integradora VI',
+         'Atividade Integradora VII', 'Atividade Integradora VIII', 'Atividade Integradora IX',
+         'Atividade Integradora X', 'Trabalho de Conclusão de Curso I',
+         'Trabalho de Conclusão de Curso II', 'Estágio Supervisionado'
+       ])
+   AND NOT EXISTS (SELECT 1 FROM turma t WHERE t.disciplina_id = d.id);
 `
 
 export async function migrar() {
