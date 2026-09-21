@@ -83,9 +83,19 @@ async function viewPainel() {
  * curso na hora. Cada período tem sua própria faixa de cor, intercalando clara/escura,
  * pra ficar fácil de acompanhar a linha com o olho.
  */
+// Optativa Complementar/Profissional saem do quadro por período — elas valem pra
+// qualquer curso e mudam de assunto todo semestre, então ficam num quadro só delas
+// (ver montaQuadroOptativas), sem misturar com o período fixo da grade curricular.
+const OPTATIVAS_BASE = new Set(['Optativa Complementar', 'Optativa Profissional'])
+
 function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
   const indice = indicePeriodos(curso)
-  const relevantes = turmas.filter((t) => (t.curso === 'CICLO_BASICO' || t.curso === curso) && t.turno === turno)
+  const relevantes = turmas.filter(
+    (t) =>
+      (t.curso === 'CICLO_BASICO' || t.curso === curso) &&
+      t.turno === turno &&
+      !OPTATIVAS_BASE.has(t.disciplina.split(' — ')[0]),
+  )
 
   // período -> dia -> turma[]
   const porPeriodo = new Map()
@@ -132,13 +142,71 @@ function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
   </div>`
 }
 
-/** Quatro quadros: Civil-manhã, Produção-manhã, Civil-noite, Produção-noite. */
+/**
+ * Quadro à parte só das optativas (Complementar e Profissional). Elas não pertencem a
+ * um curso fixo nem a um período fixo — servem pra qualquer curso e o assunto muda a
+ * cada semestre — então ficam fora dos quadros por período, uma linha por optativa
+ * (pode ter mais de uma "Optativa Complementar" rodando no mesmo semestre), com o dia
+ * da semana nas colunas. Assim dá pra ver de cara se duas caem no mesmo dia — e,
+ * dentro da célula, no mesmo turno — antes de bater de frente na agenda de alguém.
+ */
+function montaQuadroOptativas(turmas) {
+  const relevantes = turmas.filter((t) => OPTATIVAS_BASE.has(t.disciplina.split(' — ')[0]))
+  if (!relevantes.length) return ''
+
+  const porOptativa = new Map()
+  for (const t of relevantes) {
+    if (!porOptativa.has(t.disciplina)) porOptativa.set(t.disciplina, new Map())
+    const bucket = porOptativa.get(t.disciplina)
+    const dia = t.diaSemana || ''
+    if (!bucket.has(dia)) bucket.set(dia, [])
+    bucket.get(dia).push(t)
+  }
+
+  const nomes = [...porOptativa.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  const linhas = nomes.map((nome, i) => {
+    const porDia = porOptativa.get(nome)
+    return `<tr class="${i % 2 === 0 ? 'linha-periodo-a' : 'linha-periodo-b'}">
+      <td class="texto-2" style="white-space:nowrap"><strong>${esc(nome)}</strong></td>
+      ${DIAS.map((dia) => {
+        const itens = porDia.get(dia) || []
+        if (!itens.length) return '<td></td>'
+        return `<td>${itens
+          .map(
+            (t) => `<div style="margin-bottom:6px">
+              <strong>${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'}</strong><br />
+              <span class="texto-3 pequeno">${esc(ROTULO_TURNO[t.turno] || t.turno)}</span>
+            </div>`,
+          )
+          .join('')}</td>`
+      }).join('')}
+    </tr>`
+  })
+
+  return `<div class="cartao cantos quadro-turmas" style="margin-bottom:22px; overflow-x:auto"><div class="canto"></div>
+    <div class="rotulo-secao" style="margin-bottom:6px">Optativas</div>
+    <p class="pequeno texto-3" style="margin-bottom:14px">
+      Ficam num quadro à parte porque valem pra quem quiser, de qualquer curso — assim dá
+      pra ver de cara se duas caem no mesmo dia (e, na célula, no mesmo turno) antes de
+      virar choque de horário.
+    </p>
+    <table>
+      <thead><tr><th></th>${DIAS.map((d) => `<th>${esc(ROTULO_DIA[d].slice(0, 3))}</th>`).join('')}</tr></thead>
+      <tbody>${linhas.join('')}</tbody>
+    </table>
+  </div>`
+}
+
+/** Quatro quadros por período (Civil-manhã, Produção-manhã, Civil-noite, Produção-noite)
+ * mais um quadro à parte só das optativas. */
 function montaQuadroTurmas(turmas) {
   return [
     montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'DIURNO', 'Eng. Civil'),
     montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'DIURNO', 'Eng. de Produção'),
     montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'NOTURNO', 'Eng. Civil'),
     montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'NOTURNO', 'Eng. de Produção'),
+    montaQuadroOptativas(turmas),
   ].join('')
 }
 
