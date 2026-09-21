@@ -153,6 +153,19 @@ DELETE FROM disciplina d
 DELETE FROM turma t
  WHERE t.professor_id IS NULL
    AND NOT EXISTS (SELECT 1 FROM aluno a WHERE a.turma_id = t.id);
+
+/* Conserto de uma inconsistência que dava pra acontecer antes: desmarcar a oferta de um
+   turno na tela "Oferta do semestre" não apagava a turma que já existia lá — só escondia
+   a disciplina da lista de escolha, deixando uma turma de verdade (com professor, com
+   aluno) marcada como "fora da oferta". Religa a oferta daquele turno sempre que existir
+   turma nele; a rota que salva a oferta também passou a impedir isso de acontecer de novo. */
+UPDATE disciplina d SET ofertada_diurno = TRUE
+ WHERE NOT d.ofertada_diurno
+   AND EXISTS (SELECT 1 FROM turma t WHERE t.disciplina_id = d.id AND t.turno = 'DIURNO');
+
+UPDATE disciplina d SET ofertada_noturno = TRUE
+ WHERE NOT d.ofertada_noturno
+   AND EXISTS (SELECT 1 FROM turma t WHERE t.disciplina_id = d.id AND t.turno = 'NOTURNO');
 `
 
 export async function migrar() {

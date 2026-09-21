@@ -566,8 +566,16 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
 
   /* ------------------------------ oferta do semestre ----------------------------- */
 
-  const ofertadasDiurno = new Set(disciplinas.filter((d) => d.ofertadaDiurno).map((d) => d.id))
-  const ofertadasNoturno = new Set(disciplinas.filter((d) => d.ofertadaNoturno).map((d) => d.id))
+  // Disciplina que já tem turma cadastrada NAQUELE turno não pode ter a oferta desligada
+  // dele — ficaria uma turma de verdade (com professor, com aluno) marcada como "fora
+  // da oferta", que foi exatamente a inconsistência que apareceu em Física Geral e
+  // Experimental I. Essas travam sempre marcadas; o servidor também impede de novo no
+  // salvamento, caso alguém tente contornar a tela.
+  const travadasDiurno = new Set(disciplinas.filter((d) => d.turmasDiurno > 0).map((d) => d.id))
+  const travadasNoturno = new Set(disciplinas.filter((d) => d.turmasNoturno > 0).map((d) => d.id))
+
+  const ofertadasDiurno = new Set(disciplinas.filter((d) => d.ofertadaDiurno || travadasDiurno.has(d.id)).map((d) => d.id))
+  const ofertadasNoturno = new Set(disciplinas.filter((d) => d.ofertadaNoturno || travadasNoturno.has(d.id)).map((d) => d.id))
   const misturaDiurno = new Set(disciplinas.filter((d) => d.ensalarDiurno !== false).map((d) => d.id))
   const misturaNoturno = new Set(disciplinas.filter((d) => d.ensalarNoturno !== false).map((d) => d.id))
 
@@ -610,7 +618,13 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
           <label class="item-oferta ${fora ? 'fora' : ''}" style="display:flex;gap:10px;align-items:center">
             <span style="flex:1;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <span><span class="num">${d.numero}</span> ${esc(editavel ? nomeBase(d.nome) : d.nome)}
-              ${d.turmas ? `<span class="pill neutro">${d.turmas} turma${d.turmas === 1 ? '' : 's'}</span>` : ''}</span>
+              ${
+                d.turmas
+                  ? `<span class="pill neutro" title="${d.turmasDiurno} de dia · ${d.turmasNoturno} de noite">
+                       ${d.turmas} turma${d.turmas === 1 ? '' : 's'}
+                     </span>`
+                  : ''
+              }</span>
               ${
                 editavel
                   ? `<input type="text" data-complemento="${d.id}" value="${esc(complementos.get(d.id))}"
@@ -624,7 +638,8 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
               }
             </span>
             <span style="width:64px;text-align:center">
-              <input type="checkbox" data-oferta-diurno="${d.id}" ${diurno ? 'checked' : ''} />
+              <input type="checkbox" data-oferta-diurno="${d.id}" ${diurno ? 'checked' : ''}
+                ${travadasDiurno.has(d.id) ? 'disabled title="Já tem turma cadastrada de dia — não dá pra tirar da oferta sem excluir a turma primeiro"' : ''} />
             </span>
             <span style="width:64px;text-align:center">
               ${
@@ -635,7 +650,8 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
               }
             </span>
             <span style="width:64px;text-align:center">
-              <input type="checkbox" data-oferta-noturno="${d.id}" ${noturno ? 'checked' : ''} />
+              <input type="checkbox" data-oferta-noturno="${d.id}" ${noturno ? 'checked' : ''}
+                ${travadasNoturno.has(d.id) ? 'disabled title="Já tem turma cadastrada de noite — não dá pra tirar da oferta sem excluir a turma primeiro"' : ''} />
             </span>
             <span style="width:64px;text-align:center">
               ${
@@ -654,6 +670,7 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
     el('o-lista').querySelectorAll('[data-oferta-diurno]').forEach((c) => {
       c.onchange = () => {
         const id = Number(c.dataset.ofertaDiurno)
+        if (travadasDiurno.has(id)) return desenhaOferta() // já tem turma — não desliga
         c.checked ? ofertadasDiurno.add(id) : ofertadasDiurno.delete(id)
         corrigeMistura(id)
         desenhaOferta()
@@ -663,6 +680,7 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
     el('o-lista').querySelectorAll('[data-oferta-noturno]').forEach((c) => {
       c.onchange = () => {
         const id = Number(c.dataset.ofertaNoturno)
+        if (travadasNoturno.has(id)) return desenhaOferta() // já tem turma — não desliga
         c.checked ? ofertadasNoturno.add(id) : ofertadasNoturno.delete(id)
         corrigeMistura(id)
         desenhaOferta()
@@ -727,7 +745,10 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
     desenhaOferta()
   }
   el('o-nenhuma-d').onclick = () => {
+    // preserva quem já tem turma de dia — "desmarcar todas" não pode criar a mesma
+    // inconsistência que a trava individual evita.
     ofertadasDiurno.clear()
+    travadasDiurno.forEach((id) => ofertadasDiurno.add(id))
     disciplinas.forEach((d) => corrigeMistura(d.id))
     desenhaOferta()
   }
@@ -737,6 +758,7 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
   }
   el('o-nenhuma-n').onclick = () => {
     ofertadasNoturno.clear()
+    travadasNoturno.forEach((id) => ofertadasNoturno.add(id))
     disciplinas.forEach((d) => corrigeMistura(d.id))
     desenhaOferta()
   }

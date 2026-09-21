@@ -113,7 +113,11 @@ rotasAdmin.get('/disciplinas', async (_req, res) => {
             d.ofertada_noturno AS "ofertadaNoturno",
             d.ensalar_diurno   AS "ensalarDiurno",
             d.ensalar_noturno  AS "ensalarNoturno",
-            (SELECT COUNT(*)::int FROM turma t WHERE t.disciplina_id = d.id) AS turmas
+            (SELECT COUNT(*)::int FROM turma t WHERE t.disciplina_id = d.id) AS turmas,
+            (SELECT COUNT(*)::int FROM turma t WHERE t.disciplina_id = d.id AND t.turno = 'DIURNO')
+              AS "turmasDiurno",
+            (SELECT COUNT(*)::int FROM turma t WHERE t.disciplina_id = d.id AND t.turno = 'NOTURNO')
+              AS "turmasNoturno"
        FROM disciplina d ORDER BY d.numero ASC`,
   )
   res.json({ disciplinas })
@@ -130,14 +134,29 @@ rotasAdmin.get('/disciplinas', async (_req, res) => {
  * Todas as turmas daquele turno, de qualquer professor, passam a valer o mesmo na hora.
  */
 rotasAdmin.put('/disciplinas/ofertadas', async (req, res) => {
-  const diurno = Array.isArray(req.body?.diurno) ? req.body.diurno.map(Number).filter(Number.isInteger) : []
-  const noturno = Array.isArray(req.body?.noturno) ? req.body.noturno.map(Number).filter(Number.isInteger) : []
+  let diurno = Array.isArray(req.body?.diurno) ? req.body.diurno.map(Number).filter(Number.isInteger) : []
+  let noturno = Array.isArray(req.body?.noturno) ? req.body.noturno.map(Number).filter(Number.isInteger) : []
   const ensalarDiurno = Array.isArray(req.body?.ensalarDiurno)
     ? req.body.ensalarDiurno.map(Number).filter(Number.isInteger)
     : []
   const ensalarNoturno = Array.isArray(req.body?.ensalarNoturno)
     ? req.body.ensalarNoturno.map(Number).filter(Number.isInteger)
     : []
+
+  // Não dá pra desligar a oferta de um turno que já tem turma nele — ficaria uma turma
+  // de verdade (com professor, com alunos) marcada como "fora da oferta", o que é uma
+  // inconsistência. A tela já trava isso, mas força de novo aqui pra ninguém conseguir
+  // criar essa inconsistência direto pela API.
+  const comTurmaDiurno = await q<{ id: number }>(
+    `SELECT DISTINCT d.id FROM disciplina d
+       JOIN turma t ON t.disciplina_id = d.id AND t.turno = 'DIURNO'`,
+  )
+  const comTurmaNoturno = await q<{ id: number }>(
+    `SELECT DISTINCT d.id FROM disciplina d
+       JOIN turma t ON t.disciplina_id = d.id AND t.turno = 'NOTURNO'`,
+  )
+  diurno = [...new Set([...diurno, ...comTurmaDiurno.map((d) => d.id)])]
+  noturno = [...new Set([...noturno, ...comTurmaNoturno.map((d) => d.id)])]
 
   await q(
     `UPDATE disciplina
