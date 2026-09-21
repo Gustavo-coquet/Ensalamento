@@ -83,10 +83,11 @@ async function viewPainel() {
  * curso na hora. Cada período tem sua própria faixa de cor, intercalando clara/escura,
  * pra ficar fácil de acompanhar a linha com o olho.
  */
-// Optativa Complementar/Profissional saem do quadro por período — elas valem pra
-// qualquer curso e mudam de assunto todo semestre, então ficam num quadro só delas
-// (ver montaQuadroOptativas), sem misturar com o período fixo da grade curricular.
-const OPTATIVAS_BASE = new Set(['Optativa Complementar', 'Optativa Profissional'])
+// Optativa Profissional sai do quadro por período — ela é só do 8º/9º período de Civil
+// e Produção, então duas seções dela colidiam de olhar (fica um quadro só dela, ver
+// montaQuadroOptativas). A Optativa Complementar continua no quadro normal, no 1º
+// período do Ciclo Básico, junto com as outras disciplinas.
+const OPTATIVAS_BASE = new Set(['Optativa Profissional'])
 
 function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
   const indice = indicePeriodos(curso)
@@ -143,12 +144,12 @@ function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
 }
 
 /**
- * Quadro à parte só das optativas (Complementar e Profissional). Elas não pertencem a
- * um curso fixo nem a um período fixo — servem pra qualquer curso e o assunto muda a
- * cada semestre — então ficam fora dos quadros por período, uma linha por optativa
- * (pode ter mais de uma "Optativa Complementar" rodando no mesmo semestre), com o dia
- * da semana nas colunas. Assim dá pra ver de cara se duas caem no mesmo dia — e,
- * dentro da célula, no mesmo turno — antes de bater de frente na agenda de alguém.
+ * Quadro à parte só da Optativa Profissional. Ela é comum a Eng. Civil e Eng. Produção
+ * (8º/9º período dos dois), então ficava esquisita dentro do quadro de um curso só —
+ * aqui é uma linha por optativa (pode ter mais de uma "Optativa Profissional" rodando
+ * no mesmo semestre), com o dia da semana nas colunas. Assim dá pra ver de cara se duas
+ * caem no mesmo dia — e, dentro da célula, no mesmo turno — antes de bater de frente na
+ * agenda de alguém.
  */
 function montaQuadroOptativas(turmas) {
   const relevantes = turmas.filter((t) => OPTATIVAS_BASE.has(t.disciplina.split(' — ')[0]))
@@ -185,10 +186,10 @@ function montaQuadroOptativas(turmas) {
   })
 
   return `<div class="cartao cantos quadro-turmas" style="margin-bottom:22px; overflow-x:auto"><div class="canto"></div>
-    <div class="rotulo-secao" style="margin-bottom:6px">Optativas</div>
+    <div class="rotulo-secao" style="margin-bottom:6px">Optativa Profissional</div>
     <p class="pequeno texto-3" style="margin-bottom:14px">
-      Ficam num quadro à parte porque valem pra quem quiser, de qualquer curso — assim dá
-      pra ver de cara se duas caem no mesmo dia (e, na célula, no mesmo turno) antes de
+      Fica num quadro à parte porque é comum a Civil e Produção — assim dá pra ver de
+      cara se duas seções caem no mesmo dia (e, na célula, no mesmo turno) antes de
       virar choque de horário.
     </p>
     <table>
