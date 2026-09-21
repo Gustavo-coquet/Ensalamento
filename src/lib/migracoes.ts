@@ -143,6 +143,16 @@ DELETE FROM disciplina d
          'Trabalho de Conclusão de Curso II', 'Estágio Supervisionado', 'Atividade Complementar'
        ])
    AND NOT EXISTS (SELECT 1 FROM turma t WHERE t.disciplina_id = d.id);
+
+/* Faxina: turma "órfã" — sem professor vinculado (por ex. o professor foi removido,
+   que zera professor_id via ON DELETE SET NULL, mas a turma em si continua existindo)
+   e sem nenhum aluno cadastrado. Não representa mais nada de real, então some sozinha
+   a cada boot em vez de ficar acumulando e confundindo a tela de Turmas. Só apaga
+   quando os dois estão vazios ao mesmo tempo — turma com aluno nunca é tocada, mesmo
+   sem professor. */
+DELETE FROM turma t
+ WHERE t.professor_id IS NULL
+   AND NOT EXISTS (SELECT 1 FROM aluno a WHERE a.turma_id = t.id);
 `
 
 export async function migrar() {
