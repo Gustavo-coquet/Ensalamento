@@ -1,5 +1,42 @@
 /* Telas do administrador: painel, turmas, professores, geração de salas e exportações. */
 
+/** Uma tabela "Distribuição por dia" de um turno só (Diurno ou Noturno) — sem coluna de
+ * turno porque já está no título do bloco. */
+function montaTabelaPorDia(d, turno, titulo) {
+  const linhas = d.porDia.filter((linha) => linha.turno === turno && linha.turmas > 0)
+
+  return `<div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
+    <div class="rotulo-secao" style="margin-bottom:14px">Distribuição por dia — ${esc(titulo)}</div>
+    <table>
+      <thead><tr><th>Dia</th><th>Turmas</th><th>Na mistura</th><th>Alunos</th><th>Salas previstas</th><th>Situação</th></tr></thead>
+      <tbody>
+        ${
+          linhas
+            .map((linha) => {
+              const gerado = d.ensalamentos.find((e) => e.dia === linha.dia && e.turno === linha.turno)
+              return `<tr>
+                <td><strong>${esc(linha.rotulo)}</strong></td>
+                <td>${linha.turmas}</td>
+                <td>${linha.turmasEnsaladas}</td>
+                <td>${linha.alunos}</td>
+                <td class="texto-2">${linha.salasPrevistas || '—'}</td>
+                <td>${
+                  !gerado
+                    ? '<span class="pill neutro">não gerado</span>'
+                    : gerado.desatualizado
+                      ? '<span class="pill alerta">desatualizado — gere de novo</span>'
+                      : `<span class="pill ok">${gerado.totalSalas} sala${gerado.totalSalas === 1 ? '' : 's'} gerada${gerado.totalSalas === 1 ? '' : 's'}</span>`
+                }</td>
+              </tr>`
+            })
+            .join('') ||
+          '<tr><td colspan="6" class="texto-3">Nenhuma turma com dia definido ainda.</td></tr>'
+        }
+      </tbody>
+    </table>
+  </div>`
+}
+
 async function viewPainel() {
   const d = await api('/admin/dashboard')
 
@@ -30,36 +67,8 @@ async function viewPainel() {
         : '<div class="aviso ok">Tudo preenchido — pode gerar as salas.</div>'
     }
 
-    <div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
-      <div class="rotulo-secao" style="margin-bottom:14px">Distribuição por dia e turno</div>
-      <table>
-        <thead><tr><th>Dia</th><th>Turno</th><th>Turmas</th><th>Na mistura</th><th>Alunos</th><th>Salas previstas</th><th>Situação</th></tr></thead>
-        <tbody>
-          ${d.porDia
-            .filter((linha) => linha.turmas > 0)
-            .map((linha) => {
-              const gerado = d.ensalamentos.find((e) => e.dia === linha.dia && e.turno === linha.turno)
-              return `<tr>
-                <td><strong>${esc(linha.rotulo)}</strong></td>
-                <td class="texto-2 pequeno">${esc(linha.rotuloTurno)}</td>
-                <td>${linha.turmas}</td>
-                <td>${linha.turmasEnsaladas}</td>
-                <td>${linha.alunos}</td>
-                <td class="texto-2">${linha.salasPrevistas || '—'}</td>
-                <td>${
-                  !gerado
-                    ? '<span class="pill neutro">não gerado</span>'
-                    : gerado.desatualizado
-                      ? '<span class="pill alerta">desatualizado — gere de novo</span>'
-                      : `<span class="pill ok">${gerado.totalSalas} sala${gerado.totalSalas === 1 ? '' : 's'} gerada${gerado.totalSalas === 1 ? '' : 's'}</span>`
-                }</td>
-              </tr>`
-            })
-            .join('') ||
-            '<tr><td colspan="7" class="texto-3">Nenhuma turma com dia definido ainda.</td></tr>'}
-        </tbody>
-      </table>
-    </div>
+    ${montaTabelaPorDia(d, 'DIURNO', 'Manhã (diurno)')}
+    ${montaTabelaPorDia(d, 'NOTURNO', 'Noite (noturno)')}
 
     <div class="cartao cantos"><div class="canto"></div>
       <div class="rotulo-secao" style="margin-bottom:14px">Exportações</div>
