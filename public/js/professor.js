@@ -117,15 +117,26 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
     // Uma disciplina pode aparecer em mais de uma linha do MESMO professor —
     // ele pode dar a mesma matéria de manhã numa turma e à noite em outra. E o dono é
     // por TURNO: alguém pode já ter o noturno dessa disciplina e o diurno continuar
-    // livre pra este professor — só bloqueia o turno que já é de outra pessoa.
+    // livre pra este professor. Mostra os dois donos (dia/noite) juntos na mesma opção,
+    // pra não esconder que o outro turno já tem gente — só BLOQUEIA quando o turno que
+    // esta linha está usando agora é de outra pessoa.
     const opcoes = (selecionada, turnoAtual) =>
       ['<option value="">— escolher disciplina —</option>']
         .concat(
           disciplinas.map((d) => {
-            const donoId = turnoAtual === 'DIURNO' ? d.professorIdDiurno : d.professorIdNoturno
-            const donoNome = turnoAtual === 'DIURNO' ? d.professorNomeDiurno : d.professorNomeNoturno
-            const deOutro = donoId && donoId !== professorId && Number(selecionada) !== d.id
-            const marca = deOutro ? ` — ${nomeExibicao(donoNome)}` : ''
+            const outroDiurno =
+              d.professorIdDiurno && d.professorIdDiurno !== professorId ? d.professorNomeDiurno : null
+            const outroNoturno =
+              d.professorIdNoturno && d.professorIdNoturno !== professorId ? d.professorNomeNoturno : null
+
+            const partes = []
+            if (outroDiurno) partes.push(`dia: ${nomeExibicao(outroDiurno)}`)
+            if (outroNoturno) partes.push(`noite: ${nomeExibicao(outroNoturno)}`)
+            const marca = partes.length ? ` — ${partes.join(' · ')}` : ''
+
+            const donoDoTurnoDaLinha = turnoAtual === 'DIURNO' ? outroDiurno : outroNoturno
+            const deOutro = !!donoDoTurnoDaLinha && Number(selecionada) !== d.id
+
             return `<option value="${d.id}" ${Number(selecionada) === d.id ? 'selected' : ''} ${
               deOutro ? 'disabled' : ''
             }>${d.numero} — ${esc(d.nome)}${esc(marca)}</option>`
