@@ -219,24 +219,38 @@ export async function atribuirDisciplinas(
 /**
  * Disciplinas com o dono atual — para montar as listas de escolha nas telas.
  * Uma linha por disciplina, mesmo que ela tenha mais de uma turma.
+ *
+ * O "dono" é por TURNO, não pela disciplina inteira: a mesma disciplina pode ter um
+ * professor de manhã e outro à noite (cada turno é uma vaga separada, igual já vale em
+ * `atribuirDisciplinas`). Antes essa função dava um dono só pra disciplina toda, o que
+ * bloqueava um segundo professor de pegar o turno livre mesmo quando ele estava
+ * disponível — corrigido aqui pra casar com a regra de verdade.
  */
 export async function disciplinasComDono() {
   return q<any>(
-    `SELECT * FROM (
-       SELECT DISTINCT ON (d.id)
-              d.id, d.numero, d.nome,
-              d.ofertada_diurno  AS "ofertadaDiurno",
-              d.ofertada_noturno AS "ofertadaNoturno",
-              d.ensalar_diurno   AS "ensalarDiurno",
-              d.ensalar_noturno  AS "ensalarNoturno",
-              t.professor_id       AS "professorId",
-              COALESCE(u.nome, '') AS "professorNome"
-         FROM disciplina d
-         LEFT JOIN turma t   ON t.disciplina_id = d.id
-         LEFT JOIN usuario u ON u.id = t.professor_id
-        ORDER BY d.id, (t.professor_id IS NULL) ASC, t.criado_em ASC
-     ) x
-     ORDER BY numero ASC`,
+    `SELECT d.id, d.numero, d.nome,
+            d.ofertada_diurno  AS "ofertadaDiurno",
+            d.ofertada_noturno AS "ofertadaNoturno",
+            d.ensalar_diurno   AS "ensalarDiurno",
+            d.ensalar_noturno  AS "ensalarNoturno",
+            diurno.professor_id  AS "professorIdDiurno",
+            COALESCE(du.nome, '') AS "professorNomeDiurno",
+            noturno.professor_id AS "professorIdNoturno",
+            COALESCE(nu.nome, '') AS "professorNomeNoturno"
+       FROM disciplina d
+       LEFT JOIN LATERAL (
+         SELECT t.professor_id FROM turma t
+          WHERE t.disciplina_id = d.id AND t.turno = 'DIURNO' AND t.professor_id IS NOT NULL
+          ORDER BY t.criado_em ASC LIMIT 1
+       ) diurno ON true
+       LEFT JOIN usuario du ON du.id = diurno.professor_id
+       LEFT JOIN LATERAL (
+         SELECT t.professor_id FROM turma t
+          WHERE t.disciplina_id = d.id AND t.turno = 'NOTURNO' AND t.professor_id IS NOT NULL
+          ORDER BY t.criado_em ASC LIMIT 1
+       ) noturno ON true
+       LEFT JOIN usuario nu ON nu.id = noturno.professor_id
+      ORDER BY d.numero ASC`,
   )
 }
 

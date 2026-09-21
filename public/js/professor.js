@@ -58,7 +58,7 @@ async function viewMinhasTurmas() {
  *
  * `salvar(itens)` recebe [{disciplinaId, dia, turno}] e devolve o resultado da API.
  */
-function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTerminar, titulo, ajuda }) {
+function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTerminar, titulo, ajuda, professorId }) {
   let linhas = itens.map((i) => ({ ...i }))
 
 
@@ -115,14 +115,17 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
     const conflitantes = indicesEmConflito()
 
     // Uma disciplina pode aparecer em mais de uma linha do MESMO professor —
-    // ele pode dar a mesma matéria de manhã numa turma e à noite em outra.
-    // Só bloqueia quando a disciplina já é de outra pessoa.
-    const opcoes = (selecionada) =>
+    // ele pode dar a mesma matéria de manhã numa turma e à noite em outra. E o dono é
+    // por TURNO: alguém pode já ter o noturno dessa disciplina e o diurno continuar
+    // livre pra este professor — só bloqueia o turno que já é de outra pessoa.
+    const opcoes = (selecionada, turnoAtual) =>
       ['<option value="">— escolher disciplina —</option>']
         .concat(
           disciplinas.map((d) => {
-            const deOutro = d.bloqueada && Number(selecionada) !== d.id
-            const marca = deOutro ? ` — ${nomeExibicao(d.professorNome)}` : ''
+            const donoId = turnoAtual === 'DIURNO' ? d.professorIdDiurno : d.professorIdNoturno
+            const donoNome = turnoAtual === 'DIURNO' ? d.professorNomeDiurno : d.professorNomeNoturno
+            const deOutro = donoId && donoId !== professorId && Number(selecionada) !== d.id
+            const marca = deOutro ? ` — ${nomeExibicao(donoNome)}` : ''
             return `<option value="${d.id}" ${Number(selecionada) === d.id ? 'selected' : ''} ${
               deOutro ? 'disabled' : ''
             }>${d.numero} — ${esc(d.nome)}${esc(marca)}</option>`
@@ -145,7 +148,7 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
                 .map(
                   (l, i) => `
               <div class="linha-disc ${conflitantes.has(i) ? 'em-conflito' : ''}">
-                <select data-campo="disciplinaId" data-i="${i}">${opcoes(l.disciplinaId)}</select>
+                <select data-campo="disciplinaId" data-i="${i}">${opcoes(l.disciplinaId, l.turno || 'NOTURNO')}</select>
                 ${selectCursos(l.curso || 'CICLO_BASICO', `data-campo="curso" data-i="${i}"`)}
                 <select data-campo="dia" data-i="${i}">${opcoesDia(i)}</select>
                 ${selectTurnos(l.turno || 'NOTURNO', `data-campo="turno" data-i="${i}"`, turnosDaDisciplina(l.disciplinaId))}
@@ -266,12 +269,9 @@ async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
 
   const meus = new Map(turmas.map((t) => [t.numero, t]))
 
-  const disciplinas = catalogo.disciplinas
-    .filter((d) => d.ofertadaDiurno || d.ofertadaNoturno || meus.has(d.numero))
-    .map((d) => ({
-      ...d,
-      bloqueada: !!d.professorId && !meus.has(d.numero),
-    }))
+  const disciplinas = catalogo.disciplinas.filter(
+    (d) => d.ofertadaDiurno || d.ofertadaNoturno || meus.has(d.numero),
+  )
 
   const itens = catalogo.disciplinas
     .filter((d) => meus.has(d.numero))
@@ -292,6 +292,7 @@ async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
     disciplinas,
     itens,
     maximo: catalogo.maximo || 10,
+    professorId: usuarioAtual.id,
     titulo: 'Minhas disciplinas',
     ajuda:
       'Uma linha por disciplina que você leciona, com o curso, o dia e o turno. Se ela entra na ' +

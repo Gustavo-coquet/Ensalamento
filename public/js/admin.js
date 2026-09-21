@@ -837,17 +837,14 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
         maximo,
         titulo: `Disciplinas de ${p.nome}`,
         ajuda:
-          'Cada linha é uma disciplina com o seu próprio dia e turno. O que estiver com outro ' +
-          'professor aparece com o nome dele e não pode ser escolhido.',
-        disciplinas: disciplinas
-          .filter(
-            (d) => d.ofertadaDiurno || d.ofertadaNoturno || p.itens.some((i) => i.disciplinaId === d.id),
-          )
-          .map((d) => ({
-            ...d,
-            bloqueada: !!d.professorId && d.professorId !== p.id,
-          })),
+          'Cada linha é uma disciplina com o seu próprio dia e turno. Quem já tem dono NAQUELE ' +
+          'turno aparece com o nome da pessoa e não pode ser escolhido — o outro turno da mesma ' +
+          'disciplina pode estar livre.',
+        disciplinas: disciplinas.filter(
+          (d) => d.ofertadaDiurno || d.ofertadaNoturno || p.itens.some((i) => i.disciplinaId === d.id),
+        ),
         itens: p.itens.map((i) => ({ disciplinaId: i.disciplinaId, dia: i.dia || '', turno: i.turno })),
+        professorId: p.id,
         salvar: (itens) => api(`/admin/atribuicao/${p.id}`, { method: 'POST', body: { itens } }),
         aoTerminar: () => montaGradeAtribuicao(alvoId, senhasRecentes),
       })
