@@ -676,6 +676,10 @@ Helena Vasques; helena.vasques@soulasalle.com.br; outrasenha"></textarea>
         },
       })
       avisar(`${r.ofertadas} disciplina(s) na oferta deste semestre.`)
+      // a grade de professores logo abaixo já tinha carregado as disciplinas antes desse
+      // salvamento — sem recarregar ela aqui, "escolher disciplina" continuaria mostrando
+      // a oferta antiga até a página inteira ser recarregada.
+      await montaGradeAtribuicao('i-grade')
     } catch (e) {
       avisar(e.message, 'erro')
     }
