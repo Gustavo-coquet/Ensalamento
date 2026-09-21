@@ -352,8 +352,9 @@ async function viewSalas() {
         <label class="campo" style="margin:0"><span>Alunos por sala (máximo)</span>
           <input id="e-cap" type="number" min="2" max="60" value="15" />
         </label>
-        <div style="display:flex;align-items:flex-end">
+        <div style="display:flex;align-items:flex-end;gap:8px">
           <button class="acao" id="e-gerar" style="width:100%">Criar salas</button>
+          <button class="secundaria perigo" id="e-apagar" style="width:100%">Apagar salas geradas</button>
         </div>
       </div>
       <p class="pequeno texto-3" id="e-info">
@@ -375,6 +376,11 @@ async function viewSalas() {
     viewSalas()
   }
 
+  const semSalas = () => {
+    el('e-resultado').innerHTML =
+      '<div class="cartao cantos"><div class="canto"></div><div class="vazio">Nenhuma sala gerada para este dia e turno ainda.</div></div>'
+  }
+
   el('e-gerar').onclick = async () => {
     const alvo = `${ROTULO_DIA[diaSelecionado]} — ${ROTULO_TURNO[turnoSelecionado].toLowerCase()}`
     if (!confirm(`Gerar as salas de ${alvo}? Isso substitui a distribuição anterior desse dia e turno.`)) return
@@ -390,12 +396,23 @@ async function viewSalas() {
     }
   }
 
+  el('e-apagar').onclick = async () => {
+    const alvo = `${ROTULO_DIA[diaSelecionado]} — ${ROTULO_TURNO[turnoSelecionado].toLowerCase()}`
+    if (!confirm(`Apagar as salas geradas de ${alvo}? Só apaga a distribuição — as turmas e os alunos continuam.`)) return
+    try {
+      await api(`/admin/ensalamento/${diaSelecionado}/${turnoSelecionado}`, { method: 'DELETE' })
+      semSalas()
+      avisar('Salas apagadas.')
+    } catch (e) {
+      avisar(e.message, 'erro')
+    }
+  }
+
   try {
     const r = await api(`/admin/ensalamento/${diaSelecionado}/${turnoSelecionado}`)
     desenhaSalas(r.ensalamento)
   } catch {
-    el('e-resultado').innerHTML =
-      '<div class="cartao cantos"><div class="canto"></div><div class="vazio">Nenhuma sala gerada para este dia e turno ainda.</div></div>'
+    semSalas()
   }
 }
 
