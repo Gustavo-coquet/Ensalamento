@@ -133,9 +133,9 @@ function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
         if (!itens.length) return '<td></td>'
         return `<td>${itens
           .map(
-            (t) => `<div style="margin-bottom:6px">
-              <strong>${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'}</strong><br />
-              <span class="texto-3 pequeno">${esc(t.disciplina)}</span>
+            (t) => `<div style="margin-bottom:6px" ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
+              <strong class="${t.ensalar ? '' : 'texto-fora-mistura'}">${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'}</strong><br />
+              <span class="pequeno ${t.ensalar ? 'texto-3' : 'texto-fora-mistura'}">${esc(t.disciplina)}</span>
             </div>`,
           )
           .join('')}</td>`
@@ -184,9 +184,9 @@ function montaQuadroOptativas(turmas) {
         if (!itens.length) return '<td></td>'
         return `<td>${itens
           .map(
-            (t) => `<div style="margin-bottom:6px">
-              <strong>${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'}</strong><br />
-              <span class="texto-3 pequeno">${esc(ROTULO_TURNO[t.turno] || t.turno)}</span>
+            (t) => `<div style="margin-bottom:6px" ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
+              <strong class="${t.ensalar ? '' : 'texto-fora-mistura'}">${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'}</strong><br />
+              <span class="pequeno ${t.ensalar ? 'texto-3' : 'texto-fora-mistura'}">${esc(ROTULO_TURNO[t.turno] || t.turno)}</span>
             </div>`,
           )
           .join('')}</td>`
@@ -221,40 +221,6 @@ function montaQuadroTurmas(turmas) {
 }
 
 /* ---------------------------------- turmas ---------------------------------- */
-
-/**
- * Resumo das turmas que estão FORA da mistura de salas — pra não precisar procurar
- * linha a linha nas listas de baixo. Só aparece quando existe pelo menos uma; cada
- * linha leva pra turma (mesmo clique de abrir usado no resto da tela).
- */
-function montaResumoForaMistura(turmas) {
-  const fora = turmas.filter((t) => !t.ensalar)
-  if (!fora.length) return ''
-
-  const linhas = fora
-    .map(
-      (t) => `<tr style="cursor:pointer" data-abrir="${t.id}">
-        <td class="texto-3">${t.numero}</td>
-        <td>${esc(t.disciplina)}</td>
-        <td class="texto-2">${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="pill alerta">sem professor</span>'}</td>
-        <td class="texto-2 pequeno">${esc(ROTULO_TURNO[t.turno] || t.turno)}</td>
-        <td class="texto-2 pequeno">${t.diaSemana ? esc(ROTULO_DIA[t.diaSemana]) : '—'}</td>
-      </tr>`,
-    )
-    .join('')
-
-  return `<div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
-    <div class="rotulo-secao" style="margin-bottom:6px">Fora da mistura de salas</div>
-    <p class="pequeno texto-3" style="margin-bottom:14px">
-      ${fora.length} turma${fora.length === 1 ? '' : 's'} marcada${fora.length === 1 ? '' : 's'} como fora
-      da mistura — quem decide isso é a Oferta do semestre, por disciplina e por turno.
-    </p>
-    <table>
-      <thead><tr><th style="width:40px">Nº</th><th>Disciplina</th><th>Professor</th><th>Turno</th><th>Dia</th></tr></thead>
-      <tbody>${linhas}</tbody>
-    </table>
-  </div>`
-}
 
 /**
  * Um bloco (Diurno ou Noturno) da lista de turmas: mostra toda disciplina ofertada
@@ -327,10 +293,9 @@ async function viewAdminTurmas() {
       As turmas nascem quando um professor escolhe as disciplinas dele — em
       <em>Cadastro em lote</em> você faz isso por ele, se precisar. As listas abaixo mostram
       toda disciplina ofertada este semestre, separada por turno — mesmo quem ainda não
-      tem professor.
+      tem professor. Nos quadros, professor e disciplina em
+      <strong class="texto-fora-mistura">vermelho</strong> estão fora da mistura de salas.
     </p>
-
-    ${montaResumoForaMistura(turmas)}
 
     ${montaQuadroTurmas(turmas)}
 

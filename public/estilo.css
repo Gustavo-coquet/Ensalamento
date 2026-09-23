@@ -205,6 +205,9 @@ tbody tr:hover { background: var(--painel-2); }
 .quadro-turmas tbody tr.linha-periodo-b td { background: rgba(79, 209, 197, 0.13); }
 .quadro-turmas tbody tr:hover td { background: var(--painel-2); }
 
+/* Professor e disciplina em vermelho nos quadros = turma fora da mistura de salas. */
+.texto-fora-mistura { color: var(--erro) !important; }
+
 /* ---------------------------------- pills -------------------------------- */
 
 .pill {
