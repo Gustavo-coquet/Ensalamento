@@ -112,6 +112,42 @@ function nomeExibicao(nome) {
     .join(' ')
 }
 
+/**
+ * Nome do professor reduzido a primeiro + último nome — só para os quadros estreitos de
+ * Turmas, onde um nome comprido ("Mariana Navega Custodio de Souza") empurrava a linha
+ * pra duas e deixava o quadro pesado. Não mexe no nome guardado nem em outras telas.
+ */
+function nomeCompactoProfessor(nome) {
+  const partes = nomeExibicao(nome).trim().split(/\s+/).filter(Boolean)
+  if (partes.length <= 2) return partes.join(' ')
+  return `${partes[0]} ${partes[partes.length - 1]}`
+}
+
+// Nome de disciplina não abrevia se já couber numa linha só do quadro.
+const LIMITE_NOME_QUADRO = 32
+
+/**
+ * Abrevia a(s) palavra(s) mais compridas do nome da disciplina ("Geometria" -> "Geo.")
+ * até caber numa linha só nos quadros de Turmas — só mexe se o nome não couber; nomes
+ * curtos saem exatamente como estão. Também é só para exibição nos quadros.
+ */
+function nomeCompactoDisciplina(nome) {
+  const texto = String(nome ?? '')
+  if (texto.length <= LIMITE_NOME_QUADRO) return texto
+
+  const palavras = texto.split(' ')
+  const candidatas = palavras
+    .map((p, i) => ({ i, tamanho: p.length }))
+    .filter(({ i, tamanho }) => tamanho > 4 && !palavras[i].endsWith('.'))
+    .sort((a, b) => b.tamanho - a.tamanho)
+
+  for (const { i } of candidatas) {
+    palavras[i] = palavras[i].slice(0, 3) + '.'
+    if (palavras.join(' ').length <= LIMITE_NOME_QUADRO) break
+  }
+  return palavras.join(' ')
+}
+
 /** Minúsculas sem acento — para buscar disciplina sem se preocupar com "ç" e "á". */
 function chaveSimples(texto) {
   return String(texto ?? '')

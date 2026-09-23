@@ -101,7 +101,7 @@ async function viewPainel() {
  * — cor diferente do vermelho de pendência, pra não confundir os dois problemas.
  * Centraliza aqui pra não repetir em cada quadro.
  */
-function celulaTurma(t, linhaSecundaria = t.disciplina) {
+function celulaTurma(t, linhaSecundaria = nomeCompactoDisciplina(t.disciplina)) {
   const okAlunos = t.totalAlunos > 0
   const okGabarito = t.gabaritoCompleto
 
@@ -113,10 +113,10 @@ function celulaTurma(t, linhaSecundaria = t.disciplina) {
 
   return `<div class="celula-turma" style="margin-bottom:8px;cursor:pointer;text-align:center" data-abrir="${t.id}"
       ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
-    <strong class="${t.ensalar ? '' : 'texto-fora-mistura'}">${
-      t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'
+    <strong class="linha-1 ${t.ensalar ? '' : 'texto-fora-mistura'}" title="${t.professor ? esc(nomeExibicao(t.professor.nome)) : ''}">${
+      t.professor ? esc(nomeCompactoProfessor(t.professor.nome)) : '<span class="texto-3">sem professor</span>'
     }</strong><br />
-    <span class="pequeno ${t.ensalar ? 'texto-3' : 'texto-fora-mistura'}">${esc(linhaSecundaria)}</span>
+    <span class="pequeno linha-1 ${t.ensalar ? 'texto-3' : 'texto-fora-mistura'}" title="${esc(t.disciplina)}">${esc(linhaSecundaria)}</span>
     <div style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:4px">
       ${linhaStatus(okAlunos, 'Turma cadastrada', 'Sem aluno cadastrado')}
       ${linhaStatus(okGabarito, 'Gabarito cadastrado', 'Gabarito incompleto')}

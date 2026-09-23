@@ -220,6 +220,19 @@ tbody tr:hover { background: var(--painel-2); }
 /* Botão de excluir dentro da célula do quadro: só aparece ao passar o mouse, pra não
    poluir o quadro quando não está em uso. */
 .celula-turma .excluir-turma { opacity: 0; margin-left: auto; transition: opacity .15s; }
+
+/* Nome do professor e da disciplina nunca quebram linha dentro do quadro — o nome do
+   professor já vem reduzido a primeiro+último e o da disciplina já vem abreviado quando
+   é grande demais (ver nomeCompactoProfessor/nomeCompactoDisciplina em comum.js); isso
+   aqui é só a garantia final de que não estoura pra uma segunda linha. */
+.celula-turma .linha-1 {
+  display: block;
+  max-width: 140px;
+  margin: 0 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .celula-turma:hover .excluir-turma { opacity: 1; }
 
 /* ---------------------------------- pills -------------------------------- */
