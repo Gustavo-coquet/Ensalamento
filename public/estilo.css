@@ -200,14 +200,27 @@ tbody tr:hover { background: var(--painel-2); }
 .cor-mistura-diurno,
 .cor-mistura-noturno { color: var(--acento) !important; }
 
-/* Quadro de turmas: uma faixa de cor por período, intercalando clara/escura. */
+/* Quadro de turmas: fundo branco pra destacar bem do resto do app (que é escuro). Como o
+   fundo muda, o texto dentro do card precisa das suas próprias cores escuras — as
+   variáveis --texto/--texto-2/--texto-3 do tema são claras, feitas pro fundo escuro. */
+.quadro-turmas {
+  background: #fff;
+  color: #1c2b3a;
+}
+.quadro-turmas th { color: #6b7a89; }
+.quadro-turmas td { border-bottom-color: rgba(20, 41, 74, .08); }
+.quadro-turmas .texto-2 { color: #3d4c5c; }
+.quadro-turmas .texto-3 { color: #8291a0; }
+
+/* Uma faixa de cor por período, intercalando clara/escura, agora sobre fundo branco. */
 .quadro-turmas tbody tr.linha-periodo-a td { background: rgba(79, 209, 197, 0.05); }
 .quadro-turmas tbody tr.linha-periodo-b td { background: rgba(79, 209, 197, 0.13); }
-.quadro-turmas tbody tr:hover td { background: var(--painel-2); }
+.quadro-turmas tbody tr:hover td { background: #f2f8f8; }
 
-/* Professor e disciplina em laranja nos quadros = turma fora da mistura de salas — cor
-   diferente do vermelho de pendência (turma/gabarito), pra não confundir os dois. */
-.texto-fora-mistura { color: var(--alerta) !important; }
+/* Professor e disciplina acinzentados nos quadros = turma fora da mistura de salas — sem
+   cor viva, pra não competir com o vermelho das bolinhas de pendência nem com o fundo
+   branco novo do quadro. */
+.texto-nao-misturada { color: #9aa7b3 !important; }
 
 /* Bolinha de status na célula do quadro (uma pra "tem aluno", outra pra "gabarito
    completo"): verde = ok, vermelha = falta. */
@@ -234,6 +247,24 @@ tbody tr:hover { background: var(--painel-2); }
   text-overflow: ellipsis;
 }
 .celula-turma:hover .excluir-turma { opacity: 1; }
+
+/* O "×" de excluir usa a cor de texto clara padrão (button.mini), que sumiria no fundo
+   branco novo do quadro — escurece só aqui dentro. */
+.quadro-turmas button.mini { color: #9aa7b3; }
+.quadro-turmas button.mini:hover { color: var(--erro); background: #fdeaea; }
+
+/* Nome da disciplina em negrito, igual o nome do professor já é (que usa <strong>). */
+.celula-turma .nome-disciplina { font-weight: 700; }
+
+/* Título do card do quadro (ex.: "Eng. Civil · Diurno") maior que o rótulo padrão de
+   seção — é o título do card, não uma legenda pequena — e escuro, pro fundo branco novo. */
+.quadro-turmas .rotulo-secao {
+  color: #1c2b3a;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  text-transform: none;
+}
 
 /* ---------------------------------- pills -------------------------------- */
 

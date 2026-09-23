@@ -97,9 +97,9 @@ async function viewPainel() {
  * de optativas) centralizados, com duas linhas embaixo — bolinha + texto, uma embaixo
  * da outra — pra "tem aluno cadastrado" (mais importante, é o que interessa pra prova
  * acontecer) e "gabarito completo" (menos importante). Cada bolinha verde quando ok e
- * vermelha quando falta. Texto em laranja quando a turma está fora da mistura de salas
- * — cor diferente do vermelho de pendência, pra não confundir os dois problemas.
- * Centraliza aqui pra não repetir em cada quadro.
+ * vermelha quando falta. Nome do professor e da disciplina ficam acinzentados quando a
+ * turma está fora da mistura de salas — cor discreta, que não compete com o vermelho das
+ * bolinhas de pendência. Centraliza aqui pra não repetir em cada quadro.
  */
 function celulaTurma(t, linhaSecundaria = nomeCompactoDisciplina(t.disciplina)) {
   const okAlunos = t.totalAlunos > 0
@@ -113,10 +113,10 @@ function celulaTurma(t, linhaSecundaria = nomeCompactoDisciplina(t.disciplina)) 
 
   return `<div class="celula-turma" style="margin-bottom:8px;cursor:pointer;text-align:center" data-abrir="${t.id}"
       ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
-    <strong class="linha-1 ${t.ensalar ? '' : 'texto-fora-mistura'}" title="${t.professor ? esc(nomeExibicao(t.professor.nome)) : ''}">${
+    <strong class="linha-1 ${t.ensalar ? '' : 'texto-nao-misturada'}" title="${t.professor ? esc(nomeExibicao(t.professor.nome)) : ''}">${
       t.professor ? esc(nomeCompactoProfessor(t.professor.nome)) : '<span class="texto-3">sem professor</span>'
-    }</strong><br />
-    <span class="pequeno linha-1 ${t.ensalar ? 'texto-3' : 'texto-fora-mistura'}" title="${esc(t.disciplina)}">${esc(linhaSecundaria)}</span>
+    }</strong>
+    <span class="pequeno linha-1 nome-disciplina ${t.ensalar ? '' : 'texto-nao-misturada'}" title="${esc(t.disciplina)}">${esc(linhaSecundaria)}</span>
     <div style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:4px">
       ${linhaStatus(okAlunos, 'Turma cadastrada', 'Sem aluno cadastrado')}
       ${linhaStatus(okGabarito, 'Gabarito cadastrado', 'Gabarito incompleto')}
