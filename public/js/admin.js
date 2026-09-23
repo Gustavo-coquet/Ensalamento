@@ -92,6 +92,34 @@ async function viewPainel() {
  * curso na hora. Cada período tem sua própria faixa de cor, intercalando clara/escura,
  * pra ficar fácil de acompanhar a linha com o olho.
  */
+/**
+ * Célula de uma turma dentro dos quadros: professor + disciplina (ou turno, no quadro
+ * de optativas), com uma bolinha de status — verde quando o gabarito está completo E
+ * tem aluno cadastrado, amarela quando falta algum dos dois — e em vermelho quando a
+ * turma está fora da mistura de salas. Centraliza aqui pra não repetir em cada quadro.
+ */
+function celulaTurma(t, linhaSecundaria = t.disciplina) {
+  const okAlunos = t.totalAlunos > 0
+  const okGabarito = t.gabaritoCompleto
+  const tudoOk = okAlunos && okGabarito
+  const pendencias = []
+  if (!okAlunos) pendencias.push('sem alunos')
+  if (!okGabarito) pendencias.push('gabarito incompleto')
+  const dicaBolinha = tudoOk ? 'Gabarito completo e alunos cadastrados' : pendencias.join(' · ')
+
+  return `<div class="celula-turma" style="margin-bottom:6px;cursor:pointer" data-abrir="${t.id}"
+      ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="bolinha ${tudoOk ? 'bolinha-ok' : 'bolinha-alerta'}" title="${esc(dicaBolinha)}"></span>
+      <strong class="${t.ensalar ? '' : 'texto-fora-mistura'}">${
+        t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'
+      }</strong>
+      <button class="mini excluir-turma" data-excluir="${t.id}" title="Excluir turma">×</button>
+    </div>
+    <span class="pequeno ${t.ensalar ? 'texto-3' : 'texto-fora-mistura'}">${esc(linhaSecundaria)}</span>
+  </div>`
+}
+
 // Optativa Profissional sai do quadro por período — ela é só do 8º/9º período de Civil
 // e Produção, então duas seções dela colidiam de olhar (fica um quadro só dela, ver
 // montaQuadroOptativas). A Optativa Complementar continua no quadro normal, no 1º
@@ -131,14 +159,7 @@ function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
       ${DIAS.map((dia) => {
         const itens = porDia.get(dia) || []
         if (!itens.length) return '<td></td>'
-        return `<td>${itens
-          .map(
-            (t) => `<div style="margin-bottom:6px" ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
-              <strong class="${t.ensalar ? '' : 'texto-fora-mistura'}">${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'}</strong><br />
-              <span class="pequeno ${t.ensalar ? 'texto-3' : 'texto-fora-mistura'}">${esc(t.disciplina)}</span>
-            </div>`,
-          )
-          .join('')}</td>`
+        return `<td>${itens.map((t) => celulaTurma(t)).join('')}</td>`
       }).join('')}
     </tr>`
   })
@@ -182,14 +203,7 @@ function montaQuadroOptativas(turmas) {
       ${DIAS.map((dia) => {
         const itens = porDia.get(dia) || []
         if (!itens.length) return '<td></td>'
-        return `<td>${itens
-          .map(
-            (t) => `<div style="margin-bottom:6px" ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
-              <strong class="${t.ensalar ? '' : 'texto-fora-mistura'}">${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'}</strong><br />
-              <span class="pequeno ${t.ensalar ? 'texto-3' : 'texto-fora-mistura'}">${esc(ROTULO_TURNO[t.turno] || t.turno)}</span>
-            </div>`,
-          )
-          .join('')}</td>`
+        return `<td>${itens.map((t) => celulaTurma(t, ROTULO_TURNO[t.turno] || t.turno)).join('')}</td>`
       }).join('')}
     </tr>`
   })
@@ -223,62 +237,36 @@ function montaQuadroTurmas(turmas) {
 /* ---------------------------------- turmas ---------------------------------- */
 
 /**
- * Um bloco (Diurno ou Noturno) da lista de turmas: mostra toda disciplina ofertada
- * naquele turno (marcada em Cadastro em lote), mesmo que ainda ninguém tenha pego —
- * nesse caso entra uma linha avisando "sem professor cadastrado", sem dia/curso porque
- * isso só existe depois que alguém leciona.
+ * Disciplinas ofertadas num turno que ainda não têm professor/turma — a única coisa que
+ * os quadros por período não conseguem mostrar (não tem turma pra desenhar). O resto
+ * (professor, gabarito, alunos, mistura) já está nos quadros, então essa lista virou só
+ * isso, pra não duplicar informação.
  */
-function blocoTurmasPorTurno(disciplinas, turmas, turno, titulo) {
+function blocoSemProfessorPorTurno(disciplinas, turmas, turno, titulo) {
   const chaveOferta = turno === 'DIURNO' ? 'ofertadaDiurno' : 'ofertadaNoturno'
-  const ofertadas = disciplinas.filter((d) => d[chaveOferta])
-  if (!ofertadas.length) return ''
+  const semProfessor = disciplinas.filter(
+    (d) => d[chaveOferta] && !turmas.some((t) => t.numero === d.numero && t.turno === turno),
+  )
+  if (!semProfessor.length) return ''
 
-  const linhas = []
-  for (const d of ofertadas) {
-    const doTurno = turmas.filter((t) => t.numero === d.numero && t.turno === turno)
-    if (!doTurno.length) {
-      linhas.push(`<tr>
+  const linhas = semProfessor
+    .map(
+      (d) => `<tr>
         <td class="texto-3">${d.numero}</td>
         <td>${esc(d.nome)}</td>
-        <td colspan="5"><span class="pill alerta">sem professor cadastrado</span></td>
-        <td></td>
-      </tr>`)
-      continue
-    }
-    for (const t of doTurno) {
-      const marcas = []
-      if (!t.ensalar) marcas.push('<span class="pill off">fora da mistura</span>')
-      if (!t.gabaritoCompleto) marcas.push('<span class="pill alerta">gabarito</span>')
-      if (!t.diaSemana) marcas.push('<span class="pill alerta">sem dia</span>')
-      if (!marcas.length) marcas.push('<span class="pill ok">ok</span>')
-      linhas.push(`<tr style="cursor:pointer" data-abrir="${t.id}">
-        <td class="texto-3">${t.numero}</td>
-        <td>${esc(t.disciplina)}</td>
-        <td class="texto-2">${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="pill alerta">sem professor</span>'}</td>
-        <td class="texto-2 pequeno">${esc(ROTULO_CURSO[t.curso] || t.curso)}</td>
-        <td class="texto-2 pequeno">${t.diaSemana ? esc(ROTULO_DIA[t.diaSemana]) : '—'}</td>
-        <td>${t.totalAlunos}</td>
-        <td style="display:flex;gap:4px;flex-wrap:wrap">${marcas.join('')}</td>
-        <td><button class="mini" data-excluir="${t.id}" title="Excluir turma">×</button></td>
-      </tr>`)
-    }
-  }
-
-  const semProfessor = ofertadas.filter((d) => !turmas.some((t) => t.numero === d.numero && t.turno === turno)).length
+      </tr>`,
+    )
+    .join('')
 
   return `<div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
-    <div class="rotulo-secao" style="margin-bottom:6px">${esc(titulo)}</div>
+    <div class="rotulo-secao" style="margin-bottom:6px">Sem professor cadastrado — ${esc(titulo)}</div>
     <p class="pequeno texto-3" style="margin-bottom:14px">
-      ${ofertadas.length} disciplina${ofertadas.length === 1 ? '' : 's'} ofertada${ofertadas.length === 1 ? '' : 's'} neste turno
-      ${semProfessor ? ` · <span class="cor-mistura-noturno">${semProfessor} sem professor cadastrado</span>` : ''}
+      ${semProfessor.length} disciplina${semProfessor.length === 1 ? '' : 's'} ofertada${semProfessor.length === 1 ? '' : 's'}
+      neste turno que ainda ninguém escolheu — configure em <em>Cadastro em lote</em>.
     </p>
     <table>
-      <thead><tr>
-        <th style="width:40px">Nº</th><th>Disciplina</th><th>Professor</th>
-        <th>Curso</th><th>Dia</th><th style="width:70px">Alunos</th>
-        <th>Situação</th><th style="width:44px"></th>
-      </tr></thead>
-      <tbody>${linhas.join('')}</tbody>
+      <thead><tr><th style="width:40px">Nº</th><th>Disciplina</th></tr></thead>
+      <tbody>${linhas}</tbody>
     </table>
   </div>`
 }
@@ -291,16 +279,18 @@ async function viewAdminTurmas() {
     <h2 class="titulo">${turmas.length} turma${turmas.length === 1 ? '' : 's'} cadastrada${turmas.length === 1 ? '' : 's'}</h2>
     <p class="pequeno texto-3" style="margin:-10px 0 20px">
       As turmas nascem quando um professor escolhe as disciplinas dele — em
-      <em>Cadastro em lote</em> você faz isso por ele, se precisar. As listas abaixo mostram
-      toda disciplina ofertada este semestre, separada por turno — mesmo quem ainda não
-      tem professor. Nos quadros, professor e disciplina em
+      <em>Cadastro em lote</em> você faz isso por ele, se precisar. Clique numa turma nos
+      quadros abaixo pra abrir ela. A bolinha mostra
+      <strong class="texto-bolinha-ok">verde</strong> quando o gabarito está completo e já
+      tem aluno cadastrado, e <strong class="texto-bolinha-alerta">amarela</strong> quando
+      falta algum dos dois. Professor e disciplina em
       <strong class="texto-fora-mistura">vermelho</strong> estão fora da mistura de salas.
     </p>
 
     ${montaQuadroTurmas(turmas)}
 
-    ${blocoTurmasPorTurno(disciplinas, turmas, 'DIURNO', 'Manhã (diurno)')}
-    ${blocoTurmasPorTurno(disciplinas, turmas, 'NOTURNO', 'Noite (noturno)')}
+    ${blocoSemProfessorPorTurno(disciplinas, turmas, 'DIURNO', 'Manhã (diurno)')}
+    ${blocoSemProfessorPorTurno(disciplinas, turmas, 'NOTURNO', 'Noite (noturno)')}
 
     ${
       !disciplinas.some((d) => d.ofertadaDiurno || d.ofertadaNoturno)

@@ -208,6 +208,19 @@ tbody tr:hover { background: var(--painel-2); }
 /* Professor e disciplina em vermelho nos quadros = turma fora da mistura de salas. */
 .texto-fora-mistura { color: var(--erro) !important; }
 
+/* Bolinha de status na célula do quadro: verde = gabarito completo + tem aluno;
+   amarela = falta algum dos dois. */
+.bolinha { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.bolinha-ok { background: var(--ok); }
+.bolinha-alerta { background: var(--alerta); }
+.texto-bolinha-ok { color: var(--ok); }
+.texto-bolinha-alerta { color: var(--alerta); }
+
+/* Botão de excluir dentro da célula do quadro: só aparece ao passar o mouse, pra não
+   poluir o quadro quando não está em uso. */
+.celula-turma .excluir-turma { opacity: 0; margin-left: auto; transition: opacity .15s; }
+.celula-turma:hover .excluir-turma { opacity: 1; }
+
 /* ---------------------------------- pills -------------------------------- */
 
 .pill {
