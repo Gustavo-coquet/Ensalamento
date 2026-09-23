@@ -205,16 +205,17 @@ tbody tr:hover { background: var(--painel-2); }
 .quadro-turmas tbody tr.linha-periodo-b td { background: rgba(79, 209, 197, 0.13); }
 .quadro-turmas tbody tr:hover td { background: var(--painel-2); }
 
-/* Professor e disciplina em vermelho nos quadros = turma fora da mistura de salas. */
-.texto-fora-mistura { color: var(--erro) !important; }
+/* Professor e disciplina em laranja nos quadros = turma fora da mistura de salas — cor
+   diferente do vermelho de pendência (turma/gabarito), pra não confundir os dois. */
+.texto-fora-mistura { color: var(--alerta) !important; }
 
-/* Bolinha de status na célula do quadro: verde = gabarito completo + tem aluno;
-   amarela = falta algum dos dois. */
+/* Bolinha de status na célula do quadro (uma pra "tem aluno", outra pra "gabarito
+   completo"): verde = ok, vermelha = falta. */
 .bolinha { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .bolinha-ok { background: var(--ok); }
-.bolinha-alerta { background: var(--alerta); }
+.bolinha-erro { background: var(--erro); }
 .texto-bolinha-ok { color: var(--ok); }
-.texto-bolinha-alerta { color: var(--alerta); }
+.texto-bolinha-erro { color: var(--erro); }
 
 /* Botão de excluir dentro da célula do quadro: só aparece ao passar o mouse, pra não
    poluir o quadro quando não está em uso. */

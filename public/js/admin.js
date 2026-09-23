@@ -94,15 +94,22 @@ async function viewPainel() {
  */
 /**
  * Célula de uma turma dentro dos quadros: professor + disciplina (ou turno, no quadro
- * de optativas) centralizados, com duas bolinhas embaixo — a primeira pra "tem aluno
- * cadastrado" (mais importante, é o que interessa pra prova acontecer) e a segunda pra
- * "gabarito completo" (menos importante). Cada uma verde quando ok e amarela quando
- * falta. Texto em vermelho quando a turma está fora da mistura de salas. Centraliza
- * aqui pra não repetir em cada quadro.
+ * de optativas) centralizados, com duas linhas embaixo — bolinha + texto, uma embaixo
+ * da outra — pra "tem aluno cadastrado" (mais importante, é o que interessa pra prova
+ * acontecer) e "gabarito completo" (menos importante). Cada bolinha verde quando ok e
+ * vermelha quando falta. Texto em laranja quando a turma está fora da mistura de salas
+ * — cor diferente do vermelho de pendência, pra não confundir os dois problemas.
+ * Centraliza aqui pra não repetir em cada quadro.
  */
 function celulaTurma(t, linhaSecundaria = t.disciplina) {
   const okAlunos = t.totalAlunos > 0
   const okGabarito = t.gabaritoCompleto
+
+  const linhaStatus = (ok, rotuloOk, rotuloFalta) => `
+    <div class="pequeno" style="display:flex;align-items:center;gap:5px">
+      <span class="bolinha ${ok ? 'bolinha-ok' : 'bolinha-erro'}"></span>
+      <span class="${ok ? 'texto-3' : 'texto-bolinha-erro'}">${ok ? rotuloOk : rotuloFalta}</span>
+    </div>`
 
   return `<div class="celula-turma" style="margin-bottom:8px;cursor:pointer;text-align:center" data-abrir="${t.id}"
       ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
@@ -110,11 +117,11 @@ function celulaTurma(t, linhaSecundaria = t.disciplina) {
       t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'
     }</strong><br />
     <span class="pequeno ${t.ensalar ? 'texto-3' : 'texto-fora-mistura'}">${esc(linhaSecundaria)}</span>
-    <div style="display:flex;justify-content:center;align-items:center;gap:6px;margin-top:4px">
-      <span class="bolinha ${okAlunos ? 'bolinha-ok' : 'bolinha-alerta'}"
-        title="${okAlunos ? 'Turma cadastrada' : 'Sem aluno cadastrado'}"></span>
-      <span class="bolinha ${okGabarito ? 'bolinha-ok' : 'bolinha-alerta'}"
-        title="${okGabarito ? 'Gabarito cadastrado' : 'Gabarito incompleto'}"></span>
+    <div style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:4px">
+      ${linhaStatus(okAlunos, 'Turma cadastrada', 'Sem aluno cadastrado')}
+      ${linhaStatus(okGabarito, 'Gabarito cadastrado', 'Gabarito incompleto')}
+    </div>
+    <div>
       <button class="mini excluir-turma" data-excluir="${t.id}" title="Excluir turma">×</button>
     </div>
   </div>`
@@ -283,8 +290,8 @@ async function viewAdminTurmas() {
       quadros abaixo pra abrir ela. Duas bolinhas por turma: a primeira é se já tem
       <strong>aluno cadastrado</strong>, a segunda se o <strong>gabarito</strong> está
       completo — <strong class="texto-bolinha-ok">verde</strong> quando ok,
-      <strong class="texto-bolinha-alerta">amarela</strong> quando falta. Professor e
-      disciplina em <strong class="texto-fora-mistura">vermelho</strong> estão fora da
+      <strong class="texto-bolinha-erro">vermelha</strong> quando falta. Professor e
+      disciplina em <strong class="texto-fora-mistura">laranja</strong> estão fora da
       mistura de salas.
     </p>
 
