@@ -229,14 +229,14 @@ function montaQuadroOptativas(turmas) {
   </div>`
 }
 
-/** Quatro quadros por período (Civil-manhã, Produção-manhã, Civil-noite, Produção-noite)
- * mais um quadro à parte só das optativas. */
+/** Quatro quadros por período (Civil-noite, Produção-noite, Civil-manhã, Produção-manhã —
+ * noturno primeiro) mais um quadro à parte só das optativas. */
 function montaQuadroTurmas(turmas) {
   return [
-    montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'DIURNO', 'Eng. Civil'),
-    montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'DIURNO', 'Eng. de Produção'),
     montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'NOTURNO', 'Eng. Civil'),
     montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'NOTURNO', 'Eng. de Produção'),
+    montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'DIURNO', 'Eng. Civil'),
+    montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'DIURNO', 'Eng. de Produção'),
     montaQuadroOptativas(turmas),
   ].join('')
 }
