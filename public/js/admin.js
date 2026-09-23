@@ -223,6 +223,40 @@ function montaQuadroTurmas(turmas) {
 /* ---------------------------------- turmas ---------------------------------- */
 
 /**
+ * Resumo das turmas que estão FORA da mistura de salas — pra não precisar procurar
+ * linha a linha nas listas de baixo. Só aparece quando existe pelo menos uma; cada
+ * linha leva pra turma (mesmo clique de abrir usado no resto da tela).
+ */
+function montaResumoForaMistura(turmas) {
+  const fora = turmas.filter((t) => !t.ensalar)
+  if (!fora.length) return ''
+
+  const linhas = fora
+    .map(
+      (t) => `<tr style="cursor:pointer" data-abrir="${t.id}">
+        <td class="texto-3">${t.numero}</td>
+        <td>${esc(t.disciplina)}</td>
+        <td class="texto-2">${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="pill alerta">sem professor</span>'}</td>
+        <td class="texto-2 pequeno">${esc(ROTULO_TURNO[t.turno] || t.turno)}</td>
+        <td class="texto-2 pequeno">${t.diaSemana ? esc(ROTULO_DIA[t.diaSemana]) : '—'}</td>
+      </tr>`,
+    )
+    .join('')
+
+  return `<div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
+    <div class="rotulo-secao" style="margin-bottom:6px">Fora da mistura de salas</div>
+    <p class="pequeno texto-3" style="margin-bottom:14px">
+      ${fora.length} turma${fora.length === 1 ? '' : 's'} marcada${fora.length === 1 ? '' : 's'} como fora
+      da mistura — quem decide isso é a Oferta do semestre, por disciplina e por turno.
+    </p>
+    <table>
+      <thead><tr><th style="width:40px">Nº</th><th>Disciplina</th><th>Professor</th><th>Turno</th><th>Dia</th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+  </div>`
+}
+
+/**
  * Um bloco (Diurno ou Noturno) da lista de turmas: mostra toda disciplina ofertada
  * naquele turno (marcada em Cadastro em lote), mesmo que ainda ninguém tenha pego —
  * nesse caso entra uma linha avisando "sem professor cadastrado", sem dia/curso porque
@@ -295,6 +329,8 @@ async function viewAdminTurmas() {
       toda disciplina ofertada este semestre, separada por turno — mesmo quem ainda não
       tem professor.
     </p>
+
+    ${montaResumoForaMistura(turmas)}
 
     ${montaQuadroTurmas(turmas)}
 
