@@ -313,11 +313,20 @@ async function viewAdminTurmas() {
     }
   })
 
+  // Excluir turma pede a senha do próprio admin antes de apagar — evita clicar no "×"
+  // sem querer e perder a turma e os alunos dela sem chance de voltar atrás.
   document.querySelectorAll('[data-excluir]').forEach((b) => {
     b.onclick = async (ev) => {
       ev.stopPropagation()
-      if (!confirm('Excluir esta turma e todos os alunos dela?')) return
-      await api(`/admin/turmas/${b.dataset.excluir}`, { method: 'DELETE' })
+      const senha = prompt('Digite sua senha para excluir esta turma e todos os alunos dela:')
+      if (senha === null) return
+      if (!senha) { avisar('Informe a senha para excluir.', 'erro'); return }
+      try {
+        await api(`/admin/turmas/${b.dataset.excluir}`, { method: 'DELETE', body: { senha } })
+      } catch (e) {
+        avisar(e.message || 'Não foi possível excluir a turma.', 'erro')
+        return
+      }
       await viewAdminTurmas()
       avisar('Turma excluída.')
     }

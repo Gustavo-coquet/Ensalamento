@@ -253,8 +253,10 @@ tbody tr:hover { background: var(--painel-2); }
 .quadro-turmas button.mini { color: #9aa7b3; }
 .quadro-turmas button.mini:hover { color: var(--erro); background: #fdeaea; }
 
-/* Nome da disciplina em negrito, igual o nome do professor já é (que usa <strong>). */
+/* Nome da disciplina em negrito, igual o nome do professor já é (que usa <strong>) — mas
+   um pouco menor, pra dar uma hierarquia clara entre os dois (professor de cara maior). */
 .celula-turma .nome-disciplina { font-weight: 700; }
+.celula-turma > strong.linha-1 { font-size: 15px; }
 
 /* Título do card do quadro (ex.: "Eng. Civil · Diurno") maior que o rótulo padrão de
    seção — é o título do card, não uma legenda pequena — e escuro, pro fundo branco novo. */
