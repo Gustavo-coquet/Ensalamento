@@ -70,7 +70,11 @@ async function viewPainel() {
     ${montaTabelaPorDia(d, 'DIURNO', 'Manhã (diurno)')}
     ${montaTabelaPorDia(d, 'NOTURNO', 'Noite (noturno)')}
 
-    <div class="cartao cantos"><div class="canto"></div>
+    ${
+      // Exportação em CSV continua só do admin — o coordenador vê o painel, mas não baixa
+      // a base inteira de alunos/gabaritos.
+      ehAdmin()
+        ? `<div class="cartao cantos"><div class="canto"></div>
       <div class="rotulo-secao" style="margin-bottom:14px">Exportações</div>
       <div class="linha-botoes">
         <button class="secundaria" onclick="baixar('/admin/export/resumo.csv')">Resumo geral (cartão-resposta)</button>
@@ -81,6 +85,8 @@ async function viewPainel() {
         o mesmo formato que a planilha gerava.
       </p>
     </div>`
+        : ''
+    }`
 }
 
 /* ------------------------------ quadro de turmas ----------------------------- */
@@ -105,13 +111,20 @@ function celulaTurma(t, linhaSecundaria = nomeCompactoDisciplina(t.disciplina)) 
   const okAlunos = t.totalAlunos > 0
   const okGabarito = t.gabaritoCompleto
 
+  // Coordenador vê o quadro inteiro, mas só abre (pra editar gabarito/alunos) a turma
+  // que é dele — igual um professor comum. Excluir turma continua exclusivo do admin.
+  const ehDona = !!(t.professor && usuarioAtual && t.professor.id === usuarioAtual.id)
+  const podeAbrir = ehAdmin() || ehDona
+  const podeExcluir = ehAdmin()
+
   const linhaStatus = (ok, rotuloOk, rotuloFalta) => `
     <div class="pequeno" style="display:flex;align-items:center;gap:5px">
       <span class="bolinha ${ok ? 'bolinha-ok' : 'bolinha-erro'}"></span>
       <span class="${ok ? 'texto-3' : 'texto-bolinha-erro'}">${ok ? rotuloOk : rotuloFalta}</span>
     </div>`
 
-  return `<div class="celula-turma" style="margin-bottom:8px;cursor:pointer;text-align:center" data-abrir="${t.id}"
+  return `<div class="celula-turma" style="margin-bottom:8px;text-align:center;cursor:${podeAbrir ? 'pointer' : 'default'}"
+      ${podeAbrir ? `data-abrir="${t.id}"` : ''}
       ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
     <strong class="linha-1 ${t.ensalar ? '' : 'texto-nao-misturada'}" title="${t.professor ? esc(nomeExibicao(t.professor.nome)) : ''}">${
       t.professor ? esc(nomeCompactoProfessor(t.professor.nome)) : '<span class="texto-3">sem professor</span>'
@@ -121,9 +134,11 @@ function celulaTurma(t, linhaSecundaria = nomeCompactoDisciplina(t.disciplina)) 
       ${linhaStatus(okAlunos, 'Turma cadastrada', 'Sem aluno cadastrado')}
       ${linhaStatus(okGabarito, 'Gabarito cadastrado', 'Gabarito incompleto')}
     </div>
-    <div>
-      <button class="mini excluir-turma" data-excluir="${t.id}" title="Excluir turma">×</button>
-    </div>
+    ${
+      podeExcluir
+        ? `<div><button class="mini excluir-turma" data-excluir="${t.id}" title="Excluir turma">×</button></div>`
+        : ''
+    }
   </div>`
 }
 
@@ -279,7 +294,9 @@ function blocoSemProfessorPorTurno(disciplinas, turmas, turno, titulo) {
 }
 
 async function viewAdminTurmas() {
-  const [{ turmas }, { disciplinas }] = await Promise.all([api('/turmas'), api('/admin/disciplinas')])
+  // ?todas=1: pro coordenador ver todas as turmas aqui (sem o parâmetro ele só veria as
+  // dele, igual em "Minhas turmas") — pro admin não muda nada, ele já via todas.
+  const [{ turmas }, { disciplinas }] = await Promise.all([api('/turmas?todas=1'), api('/admin/disciplinas')])
 
   el('conteudo').innerHTML = `
     <div class="rotulo-secao">Turmas</div>
@@ -469,7 +486,11 @@ function desenhaSalas(ensalamento) {
           <button class="secundaria" id="o-alfa" ${!porDisciplina ? 'style="border-color:var(--acento)"' : ''}>Ordem alfabética</button>
           <button class="secundaria" id="o-disc" ${porDisciplina ? 'style="border-color:var(--acento)"' : ''}>Por disciplina</button>
           <button class="secundaria" onclick="window.print()">Imprimir</button>
-          <button class="secundaria" onclick="baixar('/admin/export/salas/${ensalamento.diaSemana}/${ensalamento.turno}')">CSV</button>
+          ${
+            ehAdmin()
+              ? `<button class="secundaria" onclick="baixar('/admin/export/salas/${ensalamento.diaSemana}/${ensalamento.turno}')">CSV</button>`
+              : ''
+          }
         </div>
       </div>
     </div>
@@ -901,7 +922,7 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
                         <tr>
                           <td><strong>${esc(nomeExibicao(p.nome))}</strong>${
                             p.papel === 'ADMIN' ? ' <span class="pill ok">admin</span>' : ''
-                          }</td>
+                          }${p.papel === 'COORDENADOR' ? ' <span class="pill ok">coordenador</span>' : ''}</td>
                           <td class="texto-2 pequeno">${esc(p.email)}</td>
                           <td class="texto-2 pequeno mono">${senha ? esc(senha) : '<span class="texto-3">—</span>'}</td>
                           <td style="line-height:2">${resumo(p)}</td>
@@ -910,6 +931,15 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
                               ${aberto ? 'fechar' : 'editar'}
                             </button>
                             <button class="secundaria" data-senha="${p.id}" style="padding:5px 10px;font-size:12px">senha</button>
+                            ${
+                              p.papel !== 'ADMIN'
+                                ? `<button class="secundaria" data-papel="${p.id}" data-novo-papel="${
+                                    p.papel === 'COORDENADOR' ? 'PROFESSOR' : 'COORDENADOR'
+                                  }" style="padding:5px 10px;font-size:12px" title="Turma continua igual — só muda o que ele enxerga e se pode gerar/apagar salas">
+                                    ${p.papel === 'COORDENADOR' ? 'tirar coordenação' : 'tornar coordenador'}
+                                  </button>`
+                                : ''
+                            }
                             <button class="mini" data-apagar="${p.id}" title="Remover professor">×</button>
                           </td>
                         </tr>
@@ -936,6 +966,21 @@ async function montaGradeAtribuicao(alvoId, senhasRecentes = {}) {
         try {
           await api(`/admin/usuarios/${b.dataset.senha}`, { method: 'PUT', body: { senha } })
           avisar('Senha redefinida.')
+        } catch (e) {
+          avisar(e.message, 'erro')
+        }
+      }
+    })
+
+    document.querySelectorAll('[data-papel]').forEach((b) => {
+      b.onclick = async () => {
+        const novo = b.dataset.novoPapel
+        const rotulo = novo === 'COORDENADOR' ? 'coordenador' : 'professor'
+        if (!confirm(`Tornar esta pessoa ${rotulo}?`)) return
+        try {
+          await api(`/admin/usuarios/${b.dataset.papel}`, { method: 'PUT', body: { papel: novo } })
+          await montaGradeAtribuicao(alvoId, senhasRecentes)
+          avisar(`Agora é ${rotulo}.`)
         } catch (e) {
           avisar(e.message, 'erro')
         }

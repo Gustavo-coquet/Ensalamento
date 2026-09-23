@@ -17,6 +17,13 @@ CREATE TABLE IF NOT EXISTS usuario (
   criado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+/* COORDENADOR: vê o painel e o quadro de turmas como o admin e pode gerar/apagar salas
+   de ensalamento, mas só edita a própria turma (como um professor comum) e não tem os
+   poderes de gestão do admin. Precisa recriar o CHECK porque ele já existia sem essa
+   opção nos bancos criados antes desta versão. */
+ALTER TABLE usuario DROP CONSTRAINT IF EXISTS usuario_papel_check;
+ALTER TABLE usuario ADD  CONSTRAINT usuario_papel_check CHECK (papel IN ('ADMIN','PROFESSOR','COORDENADOR'));
+
 CREATE TABLE IF NOT EXISTS disciplina (
   id     SERIAL PRIMARY KEY,
   numero INT  NOT NULL UNIQUE,

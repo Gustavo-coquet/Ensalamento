@@ -258,7 +258,7 @@ export async function disciplinasComDono() {
 export async function atribuicaoAtual() {
   const professores = await q<any>(
     `SELECT id, nome, email, papel FROM usuario
-      WHERE papel IN ('PROFESSOR','ADMIN')
+      WHERE papel IN ('PROFESSOR','ADMIN','COORDENADOR')
       ORDER BY papel DESC, nome ASC`,
   )
 

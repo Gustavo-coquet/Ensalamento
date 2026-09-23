@@ -5,7 +5,11 @@ import { q1 } from './db'
 const SEGREDO = process.env.JWT_SECRET || 'troque-este-segredo-em-producao'
 const COOKIE = 'ensalamento_sessao'
 
-export type Papel = 'ADMIN' | 'PROFESSOR'
+/* COORDENADOR: enxerga o mesmo painel/quadro de turmas e pode gerar/apagar salas de
+   ensalamento, mas não tem os poderes de gestão do ADMIN (cadastro em lote, oferta do
+   semestre, cadastro/edição de professores, manutenção) — e só edita a própria turma,
+   igual um PROFESSOR comum (ver turmaPermitida). */
+export type Papel = 'ADMIN' | 'PROFESSOR' | 'COORDENADOR'
 export type Sessao = { id: string; nome: string; email: string; papel: Papel }
 
 declare global {
@@ -52,6 +56,17 @@ export function exigeLogin(req: Request, res: Response, next: NextFunction) {
 export function exigeAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.usuario) return res.status(401).json({ erro: 'Não autenticado' })
   if (req.usuario.papel !== 'ADMIN') return res.status(403).json({ erro: 'Acesso restrito ao administrador' })
+  next()
+}
+
+/** Painel, quadro de turmas e ensalamento: administrador e coordenador, os dois só de
+ * visualização/geração de salas — a gestão (cadastro, oferta, professores) continua só
+ * do administrador, via exigeAdmin nas rotas específicas. */
+export function exigeAdminOuCoordenador(req: Request, res: Response, next: NextFunction) {
+  if (!req.usuario) return res.status(401).json({ erro: 'Não autenticado' })
+  if (req.usuario.papel !== 'ADMIN' && req.usuario.papel !== 'COORDENADOR') {
+    return res.status(403).json({ erro: 'Acesso restrito à coordenação' })
+  }
   next()
 }
 

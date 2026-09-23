@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express'
 import bcrypt from 'bcryptjs'
 import { q, q1, transacao } from '../lib/db'
-import { exigeAdmin } from '../lib/auth'
+import { exigeAdmin, exigeAdminOuCoordenador } from '../lib/auth'
 import { lerLinhas } from '../lib/importacao'
 import {
   atribuirDisciplinas,
@@ -26,7 +26,10 @@ import {
 } from '../lib/texto'
 
 export const rotasAdmin = Router()
-rotasAdmin.use(exigeAdmin)
+// Baseline: painel, quadro de turmas e ensalamento (gerar/apagar salas) são visíveis pro
+// admin e pro coordenador. Cada rota de gestão (cadastro, oferta, professores, turma de
+// outro dono, manutenção) recebe exigeAdmin por cima, individualmente, mais abaixo.
+rotasAdmin.use(exigeAdminOuCoordenador)
 
 function validaDia(valor: string): Dia | null {
   const dia = String(valor ?? '').toUpperCase()
@@ -81,7 +84,7 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
   res.json({
     totais: {
       disciplinas: await contagem('SELECT COUNT(*) AS n FROM disciplina'),
-      professores: await contagem("SELECT COUNT(*) AS n FROM usuario WHERE papel = 'PROFESSOR'"),
+      professores: await contagem("SELECT COUNT(*) AS n FROM usuario WHERE papel IN ('PROFESSOR','COORDENADOR')"),
       turmas: turmas.length,
       alunos: await contagem('SELECT COUNT(*) AS n FROM aluno'),
       semDia: turmas.filter((t) => !t.dia_semana).length,
@@ -133,7 +136,7 @@ rotasAdmin.get('/disciplinas', async (_req, res) => {
  * diurna de uma disciplina pode entrar na mistura e a noturna dela não, por exemplo.
  * Todas as turmas daquele turno, de qualquer professor, passam a valer o mesmo na hora.
  */
-rotasAdmin.put('/disciplinas/ofertadas', async (req, res) => {
+rotasAdmin.put('/disciplinas/ofertadas', exigeAdmin, async (req, res) => {
   let diurno = Array.isArray(req.body?.diurno) ? req.body.diurno.map(Number).filter(Number.isInteger) : []
   let noturno = Array.isArray(req.body?.noturno) ? req.body.noturno.map(Number).filter(Number.isInteger) : []
   const ensalarDiurno = Array.isArray(req.body?.ensalarDiurno)
@@ -213,7 +216,7 @@ rotasAdmin.put('/disciplinas/ofertadas', async (req, res) => {
  * único ("Optativa Complementar — #61"); o admin troca o texto no campinho e salva a
  * oferta pra dar o nome de verdade.
  */
-rotasAdmin.post('/disciplinas/optativa', async (req, res) => {
+rotasAdmin.post('/disciplinas/optativa', exigeAdmin, async (req, res) => {
   const tipo = req.body?.tipo === 'PROFISSIONAL' ? 'Optativa Profissional' : 'Optativa Complementar'
 
   const [d] = await q<any>(
@@ -231,7 +234,7 @@ rotasAdmin.post('/disciplinas/optativa', async (req, res) => {
 })
 
 /** Remove uma optativa criada a mais — só deixa apagar se ninguém pegou turma dela. */
-rotasAdmin.delete('/disciplinas/:id', async (req, res) => {
+rotasAdmin.delete('/disciplinas/:id', exigeAdmin, async (req, res) => {
   const id = Number(req.params.id)
   if (!Number.isInteger(id)) return res.status(400).json({ erro: 'Id inválido' })
 
@@ -251,7 +254,7 @@ rotasAdmin.delete('/disciplinas/:id', async (req, res) => {
 
 /* -------------------------------- Usuários -------------------------------- */
 
-rotasAdmin.get('/usuarios', async (_req, res) => {
+rotasAdmin.get('/usuarios', exigeAdmin, async (_req, res) => {
   const usuarios = await q<any>(
     `SELECT u.id, u.nome, u.email, u.papel, u.ativo,
             (SELECT COUNT(*)::int FROM turma t WHERE t.professor_id = u.id) AS turmas
@@ -260,11 +263,11 @@ rotasAdmin.get('/usuarios', async (_req, res) => {
   res.json({ usuarios })
 })
 
-rotasAdmin.post('/usuarios', async (req, res) => {
+rotasAdmin.post('/usuarios', exigeAdmin, async (req, res) => {
   const nome = String(req.body?.nome ?? '').trim()
   const email = String(req.body?.email ?? '').trim().toLowerCase()
   const senha = String(req.body?.senha ?? '')
-  const papel = req.body?.papel === 'ADMIN' ? 'ADMIN' : 'PROFESSOR'
+  const papel = ['ADMIN', 'COORDENADOR'].includes(req.body?.papel) ? req.body.papel : 'PROFESSOR'
 
   if (!nome || !email) return res.status(400).json({ erro: 'Informe nome e e-mail' })
   if (senha.length < 6) return res.status(400).json({ erro: 'A senha precisa ter ao menos 6 caracteres' })
@@ -279,7 +282,7 @@ rotasAdmin.post('/usuarios', async (req, res) => {
   res.status(201).json({ usuario })
 })
 
-rotasAdmin.put('/usuarios/:id', async (req, res) => {
+rotasAdmin.put('/usuarios/:id', exigeAdmin, async (req, res) => {
   const campos: string[] = []
   const valores: unknown[] = []
   const push = (coluna: string, valor: unknown) => {
@@ -290,6 +293,15 @@ rotasAdmin.put('/usuarios/:id', async (req, res) => {
   if (req.body?.nome) push('nome', String(req.body.nome).trim())
   if (req.body?.email) push('email', String(req.body.email).trim().toLowerCase())
   if (typeof req.body?.ativo === 'boolean') push('ativo', req.body.ativo)
+  // Papel também dá pra trocar por aqui — é como promove um professor a coordenador
+  // (ou volta atrás): PROFESSOR ganha o quadro/painel de leitura + gerar/apagar salas,
+  // mas continua só editando a própria turma. Nunca deixa alguém se rebaixar sozinho.
+  if (req.body?.papel && ['ADMIN', 'PROFESSOR', 'COORDENADOR'].includes(req.body.papel)) {
+    if (req.params.id === req.usuario!.id) {
+      return res.status(400).json({ erro: 'Você não pode mudar o seu próprio papel' })
+    }
+    push('papel', req.body.papel)
+  }
   if (req.body?.senha) {
     const senha = String(req.body.senha)
     if (senha.length < 6) return res.status(400).json({ erro: 'A senha precisa ter ao menos 6 caracteres' })
@@ -299,14 +311,14 @@ rotasAdmin.put('/usuarios/:id', async (req, res) => {
 
   valores.push(req.params.id)
   const [usuario] = await q<any>(
-    `UPDATE usuario SET ${campos.join(', ')} WHERE id = $${valores.length} RETURNING id, nome, email, ativo`,
+    `UPDATE usuario SET ${campos.join(', ')} WHERE id = $${valores.length} RETURNING id, nome, email, papel, ativo`,
     valores,
   )
   if (!usuario) return res.status(404).json({ erro: 'Usuário não encontrado' })
   res.json({ usuario })
 })
 
-rotasAdmin.delete('/usuarios/:id', async (req, res) => {
+rotasAdmin.delete('/usuarios/:id', exigeAdmin, async (req, res) => {
   if (req.params.id === req.usuario!.id) return res.status(400).json({ erro: 'Você não pode remover a si mesmo' })
   await q('DELETE FROM usuario WHERE id = $1', [req.params.id])
   res.json({ ok: true })
@@ -314,7 +326,7 @@ rotasAdmin.delete('/usuarios/:id', async (req, res) => {
 
 /* --------------------------------- Turmas --------------------------------- */
 
-rotasAdmin.post('/turmas', async (req, res) => {
+rotasAdmin.post('/turmas', exigeAdmin, async (req, res) => {
   const disciplinaId = Number(req.body?.disciplinaId)
   const professorId = req.body?.professorId ? String(req.body.professorId) : null
   const curso = String(req.body?.curso ?? 'CICLO_BASICO')
@@ -343,7 +355,7 @@ rotasAdmin.post('/turmas', async (req, res) => {
  *
  * Com `modo: 'simular'` nada é gravado — serve para conferir antes de aplicar.
  */
-rotasAdmin.post('/importar', async (req, res) => {
+rotasAdmin.post('/importar', exigeAdmin, async (req, res) => {
   const texto = String(req.body?.texto ?? '')
   const senhaPadrao = String(req.body?.senhaPadrao ?? '').trim() || '000000'
   const aplicar = req.body?.modo === 'aplicar'
@@ -407,7 +419,7 @@ rotasAdmin.post('/importar', async (req, res) => {
 })
 
 /** Grade de atribuição: professores + o que cada um já leciona (com dia e turno). */
-rotasAdmin.get('/atribuicao', async (_req, res) => {
+rotasAdmin.get('/atribuicao', exigeAdmin, async (_req, res) => {
   res.json({
     disciplinas: await disciplinasComDono(),
     professores: await atribuicaoAtual(),
@@ -416,7 +428,7 @@ rotasAdmin.get('/atribuicao', async (_req, res) => {
 })
 
 /** O administrador preenchendo pelo professor — mesma regra do que ele faria sozinho. */
-rotasAdmin.post('/atribuicao/:professorId', async (req, res) => {
+rotasAdmin.post('/atribuicao/:professorId', exigeAdmin, async (req, res) => {
   const professor = await q1<any>("SELECT id FROM usuario WHERE id = $1 AND papel IN ('PROFESSOR','ADMIN')", [
     req.params.professorId,
   ])
@@ -426,7 +438,7 @@ rotasAdmin.post('/atribuicao/:professorId', async (req, res) => {
   res.json({ ok: true, ...resultado })
 })
 
-rotasAdmin.put('/turmas/:id/professor', async (req, res) => {
+rotasAdmin.put('/turmas/:id/professor', exigeAdmin, async (req, res) => {
   const professorId = req.body?.professorId ? String(req.body.professorId) : null
   const [turma] = await q<any>(
     'UPDATE turma SET professor_id = $1, atualizado_em = now() WHERE id = $2 RETURNING id, professor_id',
@@ -436,13 +448,24 @@ rotasAdmin.put('/turmas/:id/professor', async (req, res) => {
   res.json({ ok: true, turma })
 })
 
-rotasAdmin.delete('/turmas/:id', async (req, res) => {
+/* Excluir turma pede a senha do próprio admin logado (mesma checagem de /auth/senha) —
+   é só pra evitar apagar sem querer ao clicar no "×" sem pensar, não é um controle de
+   acesso à parte (quem chega até aqui já é admin). */
+rotasAdmin.delete('/turmas/:id', exigeAdmin, async (req, res) => {
+  const senha = String(req.body?.senha ?? '')
+  if (!senha) return res.status(400).json({ erro: 'Confirme sua senha para excluir a turma' })
+
+  const admin = await q1<{ senha_hash: string }>('SELECT senha_hash FROM usuario WHERE id = $1', [req.usuario!.id])
+  if (!admin || !(await bcrypt.compare(senha, admin.senha_hash))) {
+    return res.status(400).json({ erro: 'Senha incorreta' })
+  }
+
   await q('DELETE FROM turma WHERE id = $1', [req.params.id])
   res.json({ ok: true })
 })
 
 /** Equivale ao "Apagar A5:B53" da planilha: zera os alunos de todas as turmas. */
-rotasAdmin.post('/limpar-alunos', async (req, res) => {
+rotasAdmin.post('/limpar-alunos', exigeAdmin, async (req, res) => {
   if (req.body?.confirmacao !== 'APAGAR') return res.status(400).json({ erro: 'Confirmação inválida' })
 
   const removidos = await q('DELETE FROM aluno RETURNING id')
@@ -455,7 +478,7 @@ rotasAdmin.post('/limpar-alunos', async (req, res) => {
  * alunos, os gabaritos e as salas). Contas de administrador e as 60 disciplinas
  * ficam. Serve para recomeçar o semestre sem catar um a um.
  */
-rotasAdmin.post('/limpar-professores', async (req, res) => {
+rotasAdmin.post('/limpar-professores', exigeAdmin, async (req, res) => {
   if (req.body?.confirmacao !== 'APAGAR') return res.status(400).json({ erro: 'Confirmação inválida' })
 
   const resumo = await transacao(async (exec) => {
@@ -527,7 +550,7 @@ function enviaCSV(res: Response, nome: string, conteudo: string) {
 }
 
 /** RESUMO geral — mesmo formato que alimentava o leitor de cartão-resposta. */
-rotasAdmin.get('/export/resumo.csv', async (_req, res) => {
+rotasAdmin.get('/export/resumo.csv', exigeAdmin, async (_req, res) => {
   const linhas = await q<any>(
     `SELECT t.curso, t.turno, d.nome AS disciplina, d.numero,
             COALESCE(u.nome, '') AS professor, a.matricula, a.nome
@@ -557,7 +580,7 @@ rotasAdmin.get('/export/resumo.csv', async (_req, res) => {
 })
 
 /** Gabaritos: uma linha por turma, 10 colunas de resposta. */
-rotasAdmin.get('/export/gabaritos.csv', async (_req, res) => {
+rotasAdmin.get('/export/gabaritos.csv', exigeAdmin, async (_req, res) => {
   const linhas = await q<any>(
     `SELECT d.numero, d.nome AS disciplina, COALESCE(u.nome,'') AS professor,
             t.dia_semana, t.turno, t.curso, t.ensalar, t.gabarito
@@ -587,7 +610,7 @@ rotasAdmin.get('/export/gabaritos.csv', async (_req, res) => {
 })
 
 /** Salas de um dia + turno: uma linha por aluno alocado. */
-rotasAdmin.get('/export/salas/:dia/:turno', async (req, res) => {
+rotasAdmin.get('/export/salas/:dia/:turno', exigeAdmin, async (req, res) => {
   const dia = validaDia(req.params.dia)
   const turno = validaTurno(req.params.turno)
   if (!dia) return res.status(400).json({ erro: 'Dia inválido' })

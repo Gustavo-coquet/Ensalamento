@@ -16,11 +16,17 @@ import {
 export const rotasTurmas = Router()
 rotasTurmas.use(exigeLogin)
 
-/** Turmas visíveis: administrador vê todas, professor vê as dele. */
+/**
+ * Turmas visíveis: administrador sempre vê todas. Coordenador também vê todas quando a
+ * tela pede (?todas=1 — é o quadro geral de Turmas), mas por padrão (ex.: "Minhas
+ * turmas") vê só as dele, igual um professor comum — ele só tem os poderes extras de
+ * visualização/salas, não o de mexer na turma alheia.
+ */
 rotasTurmas.get('/', async (req, res) => {
   const usuario = req.usuario!
-  const soDoProfessor = usuario.papel === 'ADMIN' ? '' : 'WHERE t.professor_id = $1'
-  const params = usuario.papel === 'ADMIN' ? [] : [usuario.id]
+  const verTodas = usuario.papel === 'ADMIN' || (usuario.papel === 'COORDENADOR' && req.query.todas === '1')
+  const soDoProfessor = verTodas ? '' : 'WHERE t.professor_id = $1'
+  const params = verTodas ? [] : [usuario.id]
 
   const linhas = await q<any>(
     `SELECT t.id, t.curso, t.dia_semana, t.ensalar, t.turno, t.gabarito, t.atualizado_em,

@@ -6,6 +6,16 @@ function ehAdmin() {
   return usuarioAtual?.papel === 'ADMIN'
 }
 
+function ehCoordenador() {
+  return usuarioAtual?.papel === 'COORDENADOR'
+}
+
+/** Admin e coordenador têm o mesmo painel/quadro de leitura + gerar salas — só a gestão
+ * (cadastro em lote, manutenção) é exclusiva do admin. */
+function vePainelAdmin() {
+  return ehAdmin() || ehCoordenador()
+}
+
 const MENU_ADMIN = [
   { rota: 'painel', texto: 'Painel' },
   { rota: 'salas', texto: 'Gerar salas' },
@@ -16,6 +26,19 @@ const MENU_ADMIN = [
   { rota: 'senha', texto: 'Trocar senha' },
 ]
 
+// Coordenador enxerga o mesmo painel/quadro do admin e pode gerar/apagar salas, mas não
+// tem cadastro em lote nem manutenção — e continua com "Minhas turmas" pra cuidar só da
+// disciplina que é dele (escolher disciplina, gabarito, alunos), igual um professor.
+const MENU_COORDENADOR = [
+  { rota: 'painel', texto: 'Painel' },
+  { rota: 'salas', texto: 'Gerar salas' },
+  { rota: 'admin-turmas', texto: 'Turmas' },
+  { separador: true },
+  { rota: 'turmas', texto: 'Minhas turmas' },
+  { separador: true },
+  { rota: 'senha', texto: 'Trocar senha' },
+]
+
 const MENU_PROFESSOR = [
   { rota: 'turmas', texto: 'Minhas turmas' },
   { separador: true },
@@ -23,7 +46,7 @@ const MENU_PROFESSOR = [
 ]
 
 function desenhaMenu(rotaAtiva) {
-  const itens = ehAdmin() ? MENU_ADMIN : MENU_PROFESSOR
+  const itens = ehAdmin() ? MENU_ADMIN : ehCoordenador() ? MENU_COORDENADOR : MENU_PROFESSOR
   el('menu').innerHTML = itens
     .map((i) =>
       i.separador
@@ -45,10 +68,10 @@ function irPara(rota) {
 async function rotear() {
   if (!usuarioAtual) return
 
-  const rota = location.hash.slice(1) || (ehAdmin() ? 'painel' : 'turmas')
+  const rota = location.hash.slice(1) || (vePainelAdmin() ? 'painel' : 'turmas')
   const [base, param] = rota.split('/')
 
-  desenhaMenu(base === 'turma' ? (ehAdmin() ? 'admin-turmas' : 'turmas') : base)
+  desenhaMenu(base === 'turma' ? (vePainelAdmin() ? 'admin-turmas' : 'turmas') : base)
   el('conteudo').innerHTML = '<div class="vazio">carregando…</div>'
 
   const telas = {
@@ -62,8 +85,12 @@ async function rotear() {
     turma: () => viewTurma(param),
   }
 
-  const somenteAdmin = ['painel', 'salas', 'admin-turmas', 'importar', 'manutencao']
-  if (somenteAdmin.includes(base) && !ehAdmin()) return irPara('turmas')
+  // Cadastro em lote e Manutenção continuam só do admin — painel/salas/quadro de turmas
+  // o coordenador também usa.
+  const somenteAdmin = ['importar', 'manutencao']
+  const somenteAdminOuCoordenador = ['painel', 'salas', 'admin-turmas']
+  if (somenteAdmin.includes(base) && !ehAdmin()) return irPara(vePainelAdmin() ? 'painel' : 'turmas')
+  if (somenteAdminOuCoordenador.includes(base) && !vePainelAdmin()) return irPara('turmas')
 
   const tela = telas[base]
   if (!tela) return irPara(ehAdmin() ? 'painel' : 'turmas')
@@ -82,7 +109,7 @@ function mostrarApp() {
   el('tela-login').classList.add('oculto')
   el('app').classList.remove('oculto')
   el('topo-nome').textContent = nomeExibicao(usuarioAtual.nome)
-  el('topo-papel').textContent = ehAdmin() ? 'administrador' : 'professor'
+  el('topo-papel').textContent = ehAdmin() ? 'administrador' : ehCoordenador() ? 'coordenador' : 'professor'
   rotear()
 }
 

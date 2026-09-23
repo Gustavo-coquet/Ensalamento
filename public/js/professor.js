@@ -430,7 +430,7 @@ async function viewTurma(turmaId) {
     avisar(faltam ? `Gabarito salvo — ainda faltam ${faltam} questões.` : 'Gabarito salvo e completo.', faltam ? 'info' : 'ok')
   }
 
-  el('voltar').onclick = () => irPara(ehAdmin() ? 'admin-turmas' : 'turmas')
+  el('voltar').onclick = () => irPara(vePainelAdmin() ? 'admin-turmas' : 'turmas')
 
   /* ---------------------------------- alunos --------------------------------- */
 
