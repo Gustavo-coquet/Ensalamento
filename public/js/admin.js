@@ -41,17 +41,24 @@ function montaTabelaPorDia(d, turno, titulo) {
  * uma (sem aluno cadastrado, gabarito incompleto) — pra saber quem cobrar sem abrir
  * turma por turma. A linha "Geral" no topo é a mesma conta somando todo mundo. */
 function montaResumoPorProfessor(d) {
-  const pendencia = (n, rotulo) =>
-    n ? `<span class="pill alerta" style="margin:1px 4px 1px 0">${n} ${rotulo}</span>` : ''
+  // Cada dimensão (aluno, gabarito) mostra o próprio selo — vermelho/laranja quando falta
+  // alguma coisa, verde quando aquela dimensão está 100% ok, mesmo que a outra não esteja.
+  const selo = (n, rotuloFalta, rotuloOk) =>
+    n
+      ? `<span class="pill alerta" style="margin:1px 4px 1px 0">${n} ${rotuloFalta}</span>`
+      : `<span class="pill ok" style="margin:1px 4px 1px 0">${rotuloOk}</span>`
 
   const linha = (nome, p, destaque = false) => `
     <tr>
       <td>${destaque ? `<strong>${esc(nome)}</strong>` : esc(nome)}</td>
       <td>${p.turmas} disciplina${p.turmas === 1 ? '' : 's'} cadastrada${p.turmas === 1 ? '' : 's'}</td>
       <td>
-        ${pendencia(p.semAluno, 'sem aluno cadastrado')}
-        ${pendencia(p.semGabarito, 'sem gabarito')}
-        ${!p.semAluno && !p.semGabarito ? '<span class="pill ok">tudo em dia</span>' : ''}
+        ${
+          p.turmas
+            ? `${selo(p.semAluno, 'sem aluno cadastrado', '100% com aluno cadastrado')}
+               ${selo(p.semGabarito, 'sem gabarito', '100% com gabarito completo')}`
+            : '<span class="pill neutro">sem disciplina cadastrada</span>'
+        }
       </td>
     </tr>`
 
