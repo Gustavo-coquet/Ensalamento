@@ -37,6 +37,40 @@ function montaTabelaPorDia(d, turno, titulo) {
   </div>`
 }
 
+/** Resumo por professor: quantas disciplinas (turmas) ele tem e as pendências de cada
+ * uma (sem aluno cadastrado, gabarito incompleto) — pra saber quem cobrar sem abrir
+ * turma por turma. A linha "Geral" no topo é a mesma conta somando todo mundo. */
+function montaResumoPorProfessor(d) {
+  const pendencia = (n, rotulo) =>
+    n ? `<span class="pill alerta" style="margin:1px 4px 1px 0">${n} ${rotulo}</span>` : ''
+
+  const linha = (nome, p, destaque = false) => `
+    <tr>
+      <td>${destaque ? `<strong>${esc(nome)}</strong>` : esc(nome)}</td>
+      <td>${p.turmas} disciplina${p.turmas === 1 ? '' : 's'} cadastrada${p.turmas === 1 ? '' : 's'}</td>
+      <td>
+        ${pendencia(p.semAluno, 'sem aluno cadastrado')}
+        ${pendencia(p.semGabarito, 'sem gabarito')}
+        ${!p.semAluno && !p.semGabarito ? '<span class="pill ok">tudo em dia</span>' : ''}
+      </td>
+    </tr>`
+
+  return `<div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
+    <div class="rotulo-secao" style="margin-bottom:14px">Resumo por professor</div>
+    <table>
+      <thead><tr><th>Professor</th><th>Disciplinas</th><th>Pendências</th></tr></thead>
+      <tbody>
+        ${linha('Geral (todo o curso)', d.resumoGeral, true)}
+        ${
+          d.porProfessor.length
+            ? d.porProfessor.map((p) => linha(nomeExibicao(p.nome), p)).join('')
+            : '<tr><td colspan="3" class="texto-3">Nenhum professor com disciplina cadastrada ainda.</td></tr>'
+        }
+      </tbody>
+    </table>
+  </div>`
+}
+
 async function viewPainel() {
   const d = await api('/admin/dashboard')
 
@@ -66,6 +100,8 @@ async function viewPainel() {
         ? `<div class="aviso info"><strong>Pendências antes de gerar as salas:</strong><br />${pendencias.join('<br />')}</div>`
         : '<div class="aviso ok">Tudo preenchido — pode gerar as salas.</div>'
     }
+
+    ${montaResumoPorProfessor(d)}
 
     ${montaTabelaPorDia(d, 'DIURNO', 'Manhã (diurno)')}
     ${montaTabelaPorDia(d, 'NOTURNO', 'Noite (noturno)')}

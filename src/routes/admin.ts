@@ -41,9 +41,39 @@ function validaDia(valor: string): Dia | null {
 rotasAdmin.get('/dashboard', async (_req, res) => {
   const turmas = await q<any>(
     `SELECT t.id, t.curso, t.dia_semana, t.turno, t.ensalar, t.gabarito, t.professor_id,
+            u.nome AS professor_nome,
             (SELECT COUNT(*)::int FROM aluno a WHERE a.turma_id = t.id) AS total_alunos
-       FROM turma t`,
+       FROM turma t
+       LEFT JOIN usuario u ON u.id = t.professor_id`,
   )
+
+  // Resumo por professor: quantas disciplinas (turmas) ele tem, quantas ainda estão sem
+  // aluno cadastrado e quantas com gabarito incompleto — pra ver de cara quem falta
+  // cobrar sem precisar abrir turma por turma. "Geral" é a mesma conta somando todo mundo.
+  const semGabaritoTurma = (t: any) => !normalizaGabarito(t.gabarito).every((g: string) => g !== '')
+  const porProfessorMapa = new Map<string, { id: string; nome: string; turmas: number; semAluno: number; semGabarito: number }>()
+  for (const t of turmas) {
+    if (!t.professor_id) continue
+    if (!porProfessorMapa.has(t.professor_id)) {
+      porProfessorMapa.set(t.professor_id, {
+        id: t.professor_id,
+        nome: t.professor_nome,
+        turmas: 0,
+        semAluno: 0,
+        semGabarito: 0,
+      })
+    }
+    const p = porProfessorMapa.get(t.professor_id)!
+    p.turmas++
+    if (t.total_alunos === 0) p.semAluno++
+    if (semGabaritoTurma(t)) p.semGabarito++
+  }
+  const porProfessor = [...porProfessorMapa.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  const resumoGeral = {
+    turmas: turmas.length,
+    semAluno: turmas.filter((t) => t.total_alunos === 0).length,
+    semGabarito: turmas.filter(semGabaritoTurma).length,
+  }
 
   // uma linha por combinação de dia + turno: é essa a unidade de geração de salas
   const porDia = DIAS.flatMap((dia) =>
@@ -92,6 +122,8 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
       semProfessor: turmas.filter((t) => !t.professor_id).length,
     },
     porDia,
+    porProfessor,
+    resumoGeral,
     ensalamentos: ensalamentos.map((e) => ({
       dia: e.dia_semana,
       turno: e.turno,
