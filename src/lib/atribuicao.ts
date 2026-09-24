@@ -23,6 +23,8 @@ export type ResultadoAtribuicao = {
   naoOfertadas: string[]
   /** duas disciplinas dele no mesmo dia e turno */
   conflitos: string[]
+  /** turma que ficou de fora da lista mas tem aluno cadastrado: continua com ele */
+  mantidas: { disciplina: string; dia: string | null; turno: string }[]
 }
 
 /** Aceita o que vem do navegador e devolve só o que é válido. */
@@ -155,6 +157,7 @@ export async function atribuirDisciplinas(
 
   let criadas = 0
   let paraLiberar: string[] = []
+  let mantidas: ResultadoAtribuicao['mantidas'] = []
 
   await transacao(async (exec) => {
     for (const item of paraVincular) {
@@ -183,13 +186,30 @@ export async function atribuirDisciplinas(
       }
     }
 
-    // sobrou turma do professor sem item correspondente: ele não pediu mais essa vaga
-    paraLiberar = [...poolPorDisciplina.values()].flat().map((t) => t.id)
-    if (paraLiberar.length) {
-      await exec(
-        'UPDATE turma SET professor_id = NULL, atualizado_em = now() WHERE id = ANY($1::uuid[])',
-        [paraLiberar],
+    /* Sobrou turma do professor sem item correspondente: ele não pediu mais essa vaga.
+       Só libera a que está VAZIA. Turma com aluno cadastrado nunca é largada em silêncio
+       — foi assim que turmas com aluno acabaram aparecendo como "sem professor" no quadro
+       (bastava a tela mandar a lista sem uma delas). Ela continua com ele e a tela avisa;
+       para tirar de vez, a coordenação remove a turma. */
+    const sobraram = [...poolPorDisciplina.values()].flat()
+    if (sobraram.length) {
+      const comAluno = await exec<{ turma_id: string }>(
+        'SELECT DISTINCT turma_id FROM aluno WHERE turma_id = ANY($1::uuid[])',
+        [sobraram.map((t) => t.id)],
       )
+      const temAluno = new Set(comAluno.map((a) => a.turma_id))
+
+      mantidas = sobraram
+        .filter((t) => temAluno.has(t.id))
+        .map((t) => ({ disciplina: t.disciplina, dia: t.dia_semana, turno: t.turno }))
+
+      paraLiberar = sobraram.filter((t) => !temAluno.has(t.id)).map((t) => t.id)
+      if (paraLiberar.length) {
+        await exec(
+          'UPDATE turma SET professor_id = NULL, atualizado_em = now() WHERE id = ANY($1::uuid[])',
+          [paraLiberar],
+        )
+      }
     }
   })
 
@@ -213,6 +233,7 @@ export async function atribuirDisciplinas(
     ocupadas,
     naoOfertadas,
     conflitos,
+    mantidas,
   }
 }
 

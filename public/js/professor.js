@@ -252,6 +252,24 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
             turno: l.turno,
           })),
         )
+        // Turma com aluno cadastrado não é liberada só por ter sumido da lista — avisa
+        // que ela continua sob responsabilidade dele em vez de virar "sem professor".
+        if (r.mantidas?.length) {
+          const lista = r.mantidas
+            .map(
+              (m) =>
+                `${m.disciplina} (${m.dia ? ROTULO_DIA[m.dia] : 'sem dia'}, ${(
+                  ROTULO_TURNO[m.turno] || m.turno
+                ).toLowerCase()})`,
+            )
+            .join(', ')
+          avisar(
+            `Turma com aluno cadastrado não sai sozinha da sua lista: ${lista} continua com você. ` +
+              'Se precisar tirá-la de vez, fale com a coordenação.',
+            'info',
+          )
+        }
+
         if (r.ocupadas?.length) {
           avisar(`Já tem dono: ${r.ocupadas.map((o) => `${o.disciplina} (${nomeExibicao(o.professor)})`).join(', ')}`, 'info')
         } else if (r.naoOfertadas?.length) {
@@ -278,23 +296,26 @@ async function montaEscolhaDisciplinas(alvoId, aoSalvar) {
     api('/turmas'),
   ])
 
-  const meus = new Map(turmas.map((t) => [t.numero, t]))
+  // Uma linha por TURMA, não por disciplina: o mesmo professor pode ter a mesma
+  // disciplina em duas vagas (ex.: Física II numa turma de manhã e em outra à noite).
+  // Isso aqui era um Map por número de disciplina, então a segunda turma nem aparecia
+  // na lista — e salvar sem ela devolvia aquela turma para "sem professor" sem avisar.
+  // O banco e a rota de salvar já tratam vaga como disciplina+dia+turno; só a tela não.
+  const meusNumeros = new Set(turmas.map((t) => t.numero))
+  const porNumero = new Map(catalogo.disciplinas.map((d) => [d.numero, d]))
 
   const disciplinas = catalogo.disciplinas.filter(
-    (d) => d.ofertadaDiurno || d.ofertadaNoturno || meus.has(d.numero),
+    (d) => d.ofertadaDiurno || d.ofertadaNoturno || meusNumeros.has(d.numero),
   )
 
-  const itens = catalogo.disciplinas
-    .filter((d) => meus.has(d.numero))
-    .map((d) => {
-      const t = meus.get(d.numero)
-      return {
-        disciplinaId: d.id,
-        curso: t.curso || 'CICLO_BASICO',
-        dia: t.diaSemana || '',
-        turno: t.turno || 'NOTURNO',
-      }
-    })
+  const itens = turmas
+    .filter((t) => porNumero.has(t.numero))
+    .map((t) => ({
+      disciplinaId: porNumero.get(t.numero).id,
+      curso: t.curso || 'CICLO_BASICO',
+      dia: t.diaSemana || '',
+      turno: t.turno || 'NOTURNO',
+    }))
 
   el(alvoId).innerHTML = '<div class="cartao cantos"><div class="canto"></div><div id="ed-corpo"></div></div>'
 
