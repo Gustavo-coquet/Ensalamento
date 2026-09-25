@@ -43,6 +43,31 @@ function configuracao() {
   return { chave, destino, remetente }
 }
 
+/**
+ * O endereço de envio é sempre o mesmo (o do serviço), porque mandar "de" um endereço
+ * @soulasalle.com.br exigiria ser dono daquele domínio — o provedor recusaria e o destino
+ * barraria por SPF/DKIM. O que dá para personalizar é o NOME exibido, então quem recebe
+ * lê "Gustavo Braga (via Ensalamento)" na lista da caixa de entrada, e o Responder cai no
+ * e-mail do professor (reply_to). O nome é limpo de aspas, vírgulas e <> para não quebrar
+ * o cabeçalho do e-mail.
+ */
+function remetenteComNome(remetente: string, professorNome: string) {
+  const endereco = remetente.match(/<([^>]+)>/)?.[1] ?? remetente
+  const nome = professorNome.replace(/["<>,;\r\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)
+  return nome ? `"${nome} (via Ensalamento)" <${endereco}>` : remetente
+}
+
+/**
+ * Lê a lista de destinatários aceitando as duas formas: endereço puro
+ * ("eng.uni@lasalle.org.br") e com nome ("Engenharia Unilasalle <eng.uni@lasalle.org.br>"),
+ * um ou vários separados por vírgula. Um split(',') simples quebraria um nome que tivesse
+ * vírgula dentro, então o reconhecimento é por padrão, não por separador.
+ */
+function listaDestinos(valor: string): string[] {
+  const achados = valor.match(/(?:"[^"]*"|[^,<>]*)<[^>]+>|[^\s,;]+@[^\s,;]+/g) ?? []
+  return achados.map((e) => e.trim()).filter(Boolean)
+}
+
 /** Nome de arquivo que já identifica a origem na caixa de entrada de quem recebe. */
 function nomeParaAnexo(d: DadosProva) {
   const limpo = (texto: string) =>
@@ -68,10 +93,16 @@ function corpo(d: DadosProva, quando: string) {
     `Enviado em: ${quando}`,
   ]
 
+  // A instrução de resposta vem escrita com o endereço à vista: quem recebe não precisa
+  // confiar no botão Responder nem procurar de quem era a prova.
+  const comoResponder = `Responder para o e-mail do professor: ${d.professorEmail}`
+
   const texto =
     (d.substituicao
       ? 'Um professor SUBSTITUIU a prova anexada no Ensalamento.\n\n'
-      : 'Um professor anexou a prova no Ensalamento.\n\n') + linhas.join('\n')
+      : 'Um professor anexou a prova no Ensalamento.\n\n') +
+    linhas.join('\n') +
+    `\n\n${comoResponder}\n(o botão Responder deste e-mail já vai direto para ele)`
 
   const html = `<div style="font-family:ui-sans-serif,system-ui,Arial,sans-serif;font-size:14px;line-height:1.6;color:#1c2b3a">
     <p style="margin:0 0 14px">${
@@ -90,9 +121,12 @@ function corpo(d: DadosProva, quando: string) {
         })
         .join('')}
     </table>
-    <p style="margin:16px 0 0;color:#6b7a89;font-size:12.5px">
-      A prova vai anexada a este e-mail. Responder este e-mail fala direto com o professor.
+    <p style="margin:16px 0 0;padding:10px 12px;background:#f2f8f8;border-left:3px solid #2c9e94;font-size:13.5px">
+      <strong>Responder para o e-mail do professor:</strong><br />
+      <a href="mailto:${d.professorEmail}" style="color:#2c9e94">${d.professorEmail}</a>
+      <span style="color:#6b7a89"> — o botão Responder deste e-mail já vai direto para ele.</span>
     </p>
+    <p style="margin:12px 0 0;color:#6b7a89;font-size:12.5px">A prova vai anexada a este e-mail.</p>
   </div>`
 
   return { texto, html }
@@ -121,8 +155,8 @@ export async function enviarProvaPorEmail(d: DadosProva): Promise<ResultadoEmail
       // 45s: um PDF de 10 MB em base64 leva alguns segundos para subir
       signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
-        from: remetente,
-        to: destino.split(',').map((e) => e.trim()).filter(Boolean),
+        from: remetenteComNome(remetente, d.professorNome),
+        to: listaDestinos(destino),
         reply_to: d.professorEmail,
         subject: assunto,
         text: texto,
