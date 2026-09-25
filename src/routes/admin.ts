@@ -12,6 +12,7 @@ import {
 } from '../lib/atribuicao'
 import { paraCSV } from '../lib/csv'
 import { carregarEnsalamento, gerarEnsalamento, invalidarEnsalamento } from '../lib/ensalamento'
+import { enviarPdfSalas } from '../lib/pdfSalas'
 import {
   CURSOS,
   DIAS,
@@ -573,6 +574,21 @@ rotasAdmin.get('/ensalamento/:dia/:turno', async (req, res) => {
   const resultado = await carregarEnsalamento(dia, turno)
   if (!resultado) return res.status(404).json({ erro: 'Ainda não há salas geradas para este dia e turno' })
   res.json({ ensalamento: resultado })
+})
+
+/** Lista de salas em PDF, uma sala por página. ?ordem=disciplina acompanha a mesma
+ *  ordenação escolhida na tela. */
+rotasAdmin.get('/ensalamento/:dia/:turno/pdf', async (req, res) => {
+  const dia = validaDia(req.params.dia)
+  const turno = validaTurno(req.params.turno)
+  if (!dia) return res.status(400).json({ erro: 'Dia inválido' })
+  if (!turno) return res.status(400).json({ erro: 'Turno inválido' })
+
+  const resultado = await carregarEnsalamento(dia, turno)
+  if (!resultado) return res.status(404).json({ erro: 'Ainda não há salas geradas para este dia e turno' })
+
+  const ordem = req.query.ordem === 'disciplina' ? 'disciplina' : 'alfabetica'
+  enviarPdfSalas(res, resultado as any, ordem)
 })
 
 rotasAdmin.delete('/ensalamento/:dia/:turno', async (req, res) => {
