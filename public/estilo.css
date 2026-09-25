@@ -296,6 +296,10 @@ tbody tr:hover { background: var(--painel-2); }
 
 .prova-legenda { margin-top: 6px; word-break: break-word; line-height: 1.3; }
 
+/* Formato e limite ficam à vista, não só na mensagem de erro depois de tentar. */
+.prova-regra { font-size: 11px; line-height: 1.4; opacity: .85; }
+.prova-vazia .prova-regra { display: inline-block; margin-top: 6px; }
+
 /* <label> com input de arquivo escondido dentro, com a cara de botão secundário. */
 .botao-arquivo {
   display: inline-block; cursor: pointer;

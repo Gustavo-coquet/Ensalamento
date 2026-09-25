@@ -56,7 +56,8 @@ function montaResumoPorProfessor(d) {
         ${
           p.turmas
             ? `${selo(p.semAluno, 'sem aluno cadastrado', '100% com aluno cadastrado')}
-               ${selo(p.semGabarito, 'sem gabarito', '100% com gabarito completo')}`
+               ${selo(p.semGabarito, 'sem gabarito', '100% com gabarito completo')}
+               ${selo(p.semProva, 'sem prova anexada', '100% com prova anexada')}`
             : '<span class="pill neutro">sem disciplina cadastrada</span>'
         }
       </td>

@@ -42,7 +42,9 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
   const turmas = await q<any>(
     `SELECT t.id, t.curso, t.dia_semana, t.turno, t.ensalar, t.gabarito, t.professor_id,
             u.nome AS professor_nome,
-            (SELECT COUNT(*)::int FROM aluno a WHERE a.turma_id = t.id) AS total_alunos
+            (SELECT COUNT(*)::int FROM aluno a WHERE a.turma_id = t.id) AS total_alunos,
+            -- só se existe: o PDF em si nunca é lido aqui
+            EXISTS (SELECT 1 FROM prova_arquivo p WHERE p.turma_id = t.id) AS tem_prova
        FROM turma t
        LEFT JOIN usuario u ON u.id = t.professor_id`,
   )
@@ -51,7 +53,10 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
   // aluno cadastrado e quantas com gabarito incompleto — pra ver de cara quem falta
   // cobrar sem precisar abrir turma por turma. "Geral" é a mesma conta somando todo mundo.
   const semGabaritoTurma = (t: any) => !normalizaGabarito(t.gabarito).every((g: string) => g !== '')
-  const porProfessorMapa = new Map<string, { id: string; nome: string; turmas: number; semAluno: number; semGabarito: number }>()
+  const porProfessorMapa = new Map<
+    string,
+    { id: string; nome: string; turmas: number; semAluno: number; semGabarito: number; semProva: number }
+  >()
   for (const t of turmas) {
     if (!t.professor_id) continue
     if (!porProfessorMapa.has(t.professor_id)) {
@@ -61,18 +66,21 @@ rotasAdmin.get('/dashboard', async (_req, res) => {
         turmas: 0,
         semAluno: 0,
         semGabarito: 0,
+        semProva: 0,
       })
     }
     const p = porProfessorMapa.get(t.professor_id)!
     p.turmas++
     if (t.total_alunos === 0) p.semAluno++
     if (semGabaritoTurma(t)) p.semGabarito++
+    if (!t.tem_prova) p.semProva++
   }
   const porProfessor = [...porProfessorMapa.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
   const resumoGeral = {
     turmas: turmas.length,
     semAluno: turmas.filter((t) => t.total_alunos === 0).length,
     semGabarito: turmas.filter(semGabaritoTurma).length,
+    semProva: turmas.filter((t) => !t.tem_prova).length,
   }
 
   // uma linha por combinação de dia + turno: é essa a unidade de geração de salas

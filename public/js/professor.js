@@ -32,7 +32,10 @@ async function viewMinhasTurmas() {
                    src="/api/turmas/${t.id}/prova#toolbar=0&navpanes=0&scrollbar=0&view=FitH"></iframe>
          </div>
          <div class="pequeno texto-3 prova-legenda">${esc(t.prova.nome)} · ${(t.prova.tamanho / 1048576).toFixed(1)} MB</div>`
-      : '<div class="prova-vazia pequeno texto-3">sem prova anexada</div>'
+      : `<div class="prova-vazia pequeno texto-3">
+           sem prova anexada<br />
+           <span class="prova-regra">somente PDF<br />até 10 MB</span>
+         </div>`
 
     return `
       <div class="cartao cantos card-turma" data-turma="${t.id}">
@@ -53,7 +56,7 @@ async function viewMinhasTurmas() {
           <div class="turma-prova">
             ${previa}
             <div class="linha-botoes" style="margin-top:8px;justify-content:center">
-              <label class="botao-arquivo">
+              <label class="botao-arquivo" title="Arquivo em PDF, com no máximo 10 MB">
                 ${t.prova ? 'trocar' : 'anexar prova'}
                 <input type="file" accept="application/pdf,.pdf" data-prova="${t.id}" hidden />
               </label>
@@ -63,6 +66,7 @@ async function viewMinhasTurmas() {
                   : ''
               }
             </div>
+            <div class="pequeno texto-3 prova-regra" style="margin-top:6px">PDF, até 10 MB</div>
           </div>
         </div>
       </div>`
