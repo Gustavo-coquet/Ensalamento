@@ -586,6 +586,9 @@ rotasAdmin.delete('/ensalamento/:dia/:turno', async (req, res) => {
 })
 
 /* ------------------------------- Exportações ------------------------------ */
+/* Sem exigeAdmin: ficam no baseline do router (admin e coordenador). O coordenador
+   já enxerga esses mesmos dados no Painel e no quadro — baixar em CSV é a mesma
+   informação noutro formato, não um poder a mais. */
 
 function enviaCSV(res: Response, nome: string, conteudo: string) {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
@@ -594,7 +597,7 @@ function enviaCSV(res: Response, nome: string, conteudo: string) {
 }
 
 /** RESUMO geral — mesmo formato que alimentava o leitor de cartão-resposta. */
-rotasAdmin.get('/export/resumo.csv', exigeAdmin, async (_req, res) => {
+rotasAdmin.get('/export/resumo.csv', async (_req, res) => {
   const linhas = await q<any>(
     `SELECT t.curso, t.turno, d.nome AS disciplina, d.numero,
             COALESCE(u.nome, '') AS professor, a.matricula, a.nome
@@ -624,7 +627,7 @@ rotasAdmin.get('/export/resumo.csv', exigeAdmin, async (_req, res) => {
 })
 
 /** Gabaritos: uma linha por turma, 10 colunas de resposta. */
-rotasAdmin.get('/export/gabaritos.csv', exigeAdmin, async (_req, res) => {
+rotasAdmin.get('/export/gabaritos.csv', async (_req, res) => {
   const linhas = await q<any>(
     `SELECT d.numero, d.nome AS disciplina, COALESCE(u.nome,'') AS professor,
             t.dia_semana, t.turno, t.curso, t.ensalar, t.gabarito
@@ -654,7 +657,7 @@ rotasAdmin.get('/export/gabaritos.csv', exigeAdmin, async (_req, res) => {
 })
 
 /** Salas de um dia + turno: uma linha por aluno alocado. */
-rotasAdmin.get('/export/salas/:dia/:turno', exigeAdmin, async (req, res) => {
+rotasAdmin.get('/export/salas/:dia/:turno', async (req, res) => {
   const dia = validaDia(req.params.dia)
   const turno = validaTurno(req.params.turno)
   if (!dia) return res.status(400).json({ erro: 'Dia inválido' })

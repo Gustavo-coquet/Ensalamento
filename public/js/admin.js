@@ -114,11 +114,7 @@ async function viewPainel() {
     ${montaTabelaPorDia(d, 'DIURNO', 'Manhã (diurno)')}
     ${montaTabelaPorDia(d, 'NOTURNO', 'Noite (noturno)')}
 
-    ${
-      // Exportação em CSV continua só do admin — o coordenador vê o painel, mas não baixa
-      // a base inteira de alunos/gabaritos.
-      ehAdmin()
-        ? `<div class="cartao cantos"><div class="canto"></div>
+    <div class="cartao cantos"><div class="canto"></div>
       <div class="rotulo-secao" style="margin-bottom:14px">Exportações</div>
       <div class="linha-botoes">
         <button class="secundaria" onclick="baixar('/admin/export/resumo.csv')">Resumo geral (cartão-resposta)</button>
@@ -129,8 +125,6 @@ async function viewPainel() {
         o mesmo formato que a planilha gerava.
       </p>
     </div>`
-        : ''
-    }`
 }
 
 /* ------------------------------ quadro de turmas ----------------------------- */
@@ -530,11 +524,7 @@ function desenhaSalas(ensalamento) {
           <button class="secundaria" id="o-alfa" ${!porDisciplina ? 'style="border-color:var(--acento)"' : ''}>Ordem alfabética</button>
           <button class="secundaria" id="o-disc" ${porDisciplina ? 'style="border-color:var(--acento)"' : ''}>Por disciplina</button>
           <button class="secundaria" onclick="window.print()">Imprimir</button>
-          ${
-            ehAdmin()
-              ? `<button class="secundaria" onclick="baixar('/admin/export/salas/${ensalamento.diaSemana}/${ensalamento.turno}')">CSV</button>`
-              : ''
-          }
+          <button class="secundaria" onclick="baixar('/admin/export/salas/${ensalamento.diaSemana}/${ensalamento.turno}')">CSV</button>
         </div>
       </div>
     </div>
