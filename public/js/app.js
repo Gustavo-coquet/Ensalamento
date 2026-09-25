@@ -16,11 +16,16 @@ function vePainelAdmin() {
   return ehAdmin() || ehCoordenador()
 }
 
+// O administrador também dá aula, então tem "Minhas turmas" como qualquer professor —
+// é onde ele cuida das disciplinas dele (gabarito, alunos, anexo da prova). "Turmas" é
+// o quadro geral, com as turmas de todo mundo; as duas telas são coisas diferentes.
 const MENU_ADMIN = [
   { rota: 'painel', texto: 'Painel' },
   { rota: 'salas', texto: 'Gerar salas' },
   { rota: 'admin-turmas', texto: 'Turmas' },
   { rota: 'importar', texto: 'Cadastro em lote' },
+  { separador: true },
+  { rota: 'turmas', texto: 'Minhas turmas' },
   { separador: true },
   { rota: 'manutencao', texto: 'Manutenção' },
   { rota: 'senha', texto: 'Trocar senha' },
@@ -65,13 +70,19 @@ function irPara(rota) {
   else location.hash = rota
 }
 
+// De qual lista o usuário entrou numa turma — quem tem as duas telas ("Minhas turmas" e
+// o quadro geral) precisa voltar para a certa, não sempre para o quadro.
+let listaDeTurmasAnterior = null
+
 async function rotear() {
   if (!usuarioAtual) return
 
   const rota = location.hash.slice(1) || (vePainelAdmin() ? 'painel' : 'turmas')
   const [base, param] = rota.split('/')
 
-  desenhaMenu(base === 'turma' ? (vePainelAdmin() ? 'admin-turmas' : 'turmas') : base)
+  if (base === 'turmas' || base === 'admin-turmas') listaDeTurmasAnterior = base
+
+  desenhaMenu(base === 'turma' ? listaDeTurmasAnterior || (vePainelAdmin() ? 'admin-turmas' : 'turmas') : base)
   el('conteudo').innerHTML = '<div class="vazio">carregando…</div>'
 
   const telas = {
