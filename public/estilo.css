@@ -268,6 +268,49 @@ tbody tr:hover { background: var(--painel-2); }
   text-transform: none;
 }
 
+/* --------------------------- prova anexada (PDF) -------------------------- */
+
+/* Card de "Minhas turmas": dados à esquerda, prévia da 1ª página da prova à direita. */
+.card-turma .turma-conteudo { display: flex; gap: 16px; align-items: flex-start; }
+.card-turma .turma-dados { flex: 1; min-width: 0; cursor: pointer; }
+.card-turma .turma-prova { width: 140px; flex-shrink: 0; text-align: center; }
+
+.prova-caixa {
+  width: 140px; height: 180px; cursor: pointer;
+  border: 1px solid var(--linha); border-radius: 3px;
+  background: #fff; overflow: hidden;
+  transition: border-color .14s;
+}
+.prova-caixa:hover { border-color: var(--acento); }
+
+/* A miniatura não recebe clique: quem recebe é a caixa em volta, que abre o PDF inteiro
+   numa aba nova. Sem isso o visualizador de PDF do navegador engoliria o clique. */
+.prova-miniatura { width: 100%; height: 100%; border: none; display: block; pointer-events: none; }
+
+.prova-vazia {
+  width: 140px; height: 180px;
+  border: 1px dashed var(--linha); border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; padding: 10px;
+}
+
+.prova-legenda { margin-top: 6px; word-break: break-word; line-height: 1.3; }
+
+/* <label> com input de arquivo escondido dentro, com a cara de botão secundário. */
+.botao-arquivo {
+  display: inline-block; cursor: pointer;
+  background: transparent; color: var(--acento);
+  border: 1px solid var(--linha-forte); border-radius: 3px;
+  padding: 6px 12px; font-size: 12.5px; transition: all .14s;
+}
+.botao-arquivo:hover { border-color: var(--acento); background: var(--painel-2); }
+
+@media (max-width: 560px) {
+  .card-turma .turma-conteudo { flex-direction: column; }
+  .card-turma .turma-prova { width: 100%; }
+  .prova-caixa, .prova-vazia { width: 100%; }
+}
+
 /* ---------------------------------- pills -------------------------------- */
 
 .pill {

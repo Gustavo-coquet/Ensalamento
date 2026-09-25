@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, raw } from 'express'
 import { q, q1 } from '../lib/db'
 import { exigeLogin, turmaPermitida } from '../lib/auth'
 import { atribuirDisciplinas, disciplinasComDono, lerItens, MAX_DISCIPLINAS } from '../lib/atribuicao'
@@ -32,10 +32,13 @@ rotasTurmas.get('/', async (req, res) => {
     `SELECT t.id, t.curso, t.dia_semana, t.ensalar, t.turno, t.gabarito, t.atualizado_em,
             d.numero, d.nome AS disciplina,
             u.id AS professor_id, u.nome AS professor_nome, u.email AS professor_email,
-            (SELECT COUNT(*)::int FROM aluno a WHERE a.turma_id = t.id) AS total_alunos
+            (SELECT COUNT(*)::int FROM aluno a WHERE a.turma_id = t.id) AS total_alunos,
+            -- só o nome/tamanho da prova; o PDF em si sai pela rota /:id/prova
+            p.nome AS prova_nome, p.tamanho AS prova_tamanho, p.enviado_em AS prova_enviada_em
        FROM turma t
        JOIN disciplina d ON d.id = t.disciplina_id
        LEFT JOIN usuario u ON u.id = t.professor_id
+       LEFT JOIN prova_arquivo p ON p.turma_id = t.id
        ${soDoProfessor}
       ORDER BY d.numero ASC`,
     params,
@@ -54,6 +57,9 @@ rotasTurmas.get('/', async (req, res) => {
       totalAlunos: t.total_alunos,
       gabaritoCompleto: normalizaGabarito(t.gabarito).every((g) => g !== ''),
       atualizadoEm: t.atualizado_em,
+      prova: t.prova_nome
+        ? { nome: t.prova_nome, tamanho: t.prova_tamanho, enviadaEm: t.prova_enviada_em }
+        : null,
     })),
   })
 })
@@ -130,6 +136,74 @@ rotasTurmas.put('/:id/gabarito', async (req, res) => {
   const gabarito = normalizaGabarito(req.body?.gabarito)
   await q('UPDATE turma SET gabarito = $1, atualizado_em = now() WHERE id = $2', [gabarito, turma.id])
   res.json({ ok: true, gabarito })
+})
+
+/* ------------------------------ prova em PDF ------------------------------ */
+
+/** 10 MB por prova: cabe prova com figura sem obrigar ninguém a ficar comprimindo. */
+const LIMITE_PROVA = 10 * 1024 * 1024
+
+/**
+ * O PDF da prova daquela turma. Quem abre é quem já podia abrir a turma (o professor
+ * dono; o administrador, qualquer uma) — `turmaPermitida` resolve isso.
+ */
+rotasTurmas.get('/:id/prova', async (req, res) => {
+  const turma = await turmaPermitida(req.usuario!, req.params.id)
+  if (!turma) return res.status(404).json({ erro: 'Turma não encontrada' })
+
+  const prova = await q1<any>('SELECT nome, conteudo FROM prova_arquivo WHERE turma_id = $1', [turma.id])
+  if (!prova) return res.status(404).json({ erro: 'Nenhuma prova anexada nesta turma' })
+
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(prova.nome)}`)
+  res.setHeader('Cache-Control', 'private, no-cache')
+  res.send(prova.conteudo)
+})
+
+/**
+ * Anexa (ou substitui) a prova. O corpo é o próprio arquivo, não JSON — por isso o
+ * express.raw aqui na rota, em vez do express.json global.
+ */
+rotasTurmas.post('/:id/prova', raw({ type: 'application/pdf', limit: LIMITE_PROVA }), async (req, res) => {
+  const turma = await turmaPermitida(req.usuario!, req.params.id)
+  if (!turma) return res.status(404).json({ erro: 'Turma não encontrada' })
+
+  const conteudo = req.body
+  if (!Buffer.isBuffer(conteudo) || !conteudo.length) {
+    return res.status(400).json({ erro: 'Envie o arquivo PDF da prova' })
+  }
+  if (conteudo.length > LIMITE_PROVA) {
+    return res.status(413).json({ erro: 'A prova precisa ter no máximo 10 MB' })
+  }
+  // assinatura de PDF de verdade — não basta o nome terminar em ".pdf"
+  if (conteudo.subarray(0, 5).toString('latin1') !== '%PDF-') {
+    return res.status(400).json({ erro: 'O arquivo enviado não é um PDF válido' })
+  }
+
+  const nome =
+    String(req.query.nome ?? '')
+      .trim()
+      .replace(/[\\/]/g, '')
+      .slice(0, 120) || 'prova.pdf'
+
+  await q(
+    `INSERT INTO prova_arquivo (turma_id, nome, tamanho, conteudo, enviado_por)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (turma_id) DO UPDATE
+        SET nome = EXCLUDED.nome, tamanho = EXCLUDED.tamanho, conteudo = EXCLUDED.conteudo,
+            enviado_por = EXCLUDED.enviado_por, enviado_em = now()`,
+    [turma.id, nome, conteudo.length, conteudo, req.usuario!.id],
+  )
+
+  res.json({ ok: true, prova: { nome, tamanho: conteudo.length } })
+})
+
+rotasTurmas.delete('/:id/prova', async (req, res) => {
+  const turma = await turmaPermitida(req.usuario!, req.params.id)
+  if (!turma) return res.status(404).json({ erro: 'Turma não encontrada' })
+
+  await q('DELETE FROM prova_arquivo WHERE turma_id = $1', [turma.id])
+  res.json({ ok: true })
 })
 
 /** Aceita "matrícula<TAB>nome", "matrícula;nome", "matrícula,nome" ou "matrícula nome". */

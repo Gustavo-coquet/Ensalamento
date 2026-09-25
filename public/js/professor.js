@@ -24,18 +24,47 @@ async function viewMinhasTurmas() {
     if (!t.gabaritoCompleto) pendencias.push('<span class="pill alerta">gabarito incompleto</span>')
     if (!pendencias.length) pendencias.push('<span class="pill ok">pronta</span>')
 
+    // Prévia da 1ª página ao lado dos dados: a miniatura em si é só visual
+    // (pointer-events desligado no CSS) — o clique cai no quadro em volta e abre o PDF.
+    const previa = t.prova
+      ? `<div class="prova-caixa" data-ver-prova="${t.id}" title="Abrir ${esc(t.prova.nome)}">
+           <iframe class="prova-miniatura" loading="lazy" title="Prévia da prova"
+                   src="/api/turmas/${t.id}/prova#toolbar=0&navpanes=0&scrollbar=0&view=FitH"></iframe>
+         </div>
+         <div class="pequeno texto-3 prova-legenda">${esc(t.prova.nome)} · ${(t.prova.tamanho / 1048576).toFixed(1)} MB</div>`
+      : '<div class="prova-vazia pequeno texto-3">sem prova anexada</div>'
+
     return `
-      <div class="cartao cantos" style="cursor:pointer" data-turma="${t.id}">
+      <div class="cartao cantos card-turma" data-turma="${t.id}">
         <div class="canto"></div>
-        <div class="rotulo-secao">${esc(ROTULO_CURSO[t.curso] || t.curso)}</div>
-        <h3 style="margin-bottom:8px">${esc(t.disciplina)}</h3>
-        <div class="pequeno texto-3" style="margin-bottom:12px">
-          ${t.diaSemana ? esc(ROTULO_DIA[t.diaSemana]) : 'dia não definido'}
-          · ${esc(ROTULO_TURNO[t.turno] || t.turno)}
-          · ${t.totalAlunos} aluno${t.totalAlunos === 1 ? '' : 's'}
-          · ${t.ensalar ? 'entra na mistura' : 'fora da mistura'}
+        <div class="turma-conteudo">
+          <div class="turma-dados" data-abrir-turma="${t.id}">
+            <div class="rotulo-secao">${esc(ROTULO_CURSO[t.curso] || t.curso)}</div>
+            <h3 style="margin-bottom:8px">${esc(t.disciplina)}</h3>
+            <div class="pequeno texto-3" style="margin-bottom:12px">
+              ${t.diaSemana ? esc(ROTULO_DIA[t.diaSemana]) : 'dia não definido'}
+              · ${esc(ROTULO_TURNO[t.turno] || t.turno)}
+              · ${t.totalAlunos} aluno${t.totalAlunos === 1 ? '' : 's'}
+              · ${t.ensalar ? 'entra na mistura' : 'fora da mistura'}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">${pendencias.join('')}</div>
+          </div>
+
+          <div class="turma-prova">
+            ${previa}
+            <div class="linha-botoes" style="margin-top:8px;justify-content:center">
+              <label class="botao-arquivo">
+                ${t.prova ? 'trocar' : 'anexar prova'}
+                <input type="file" accept="application/pdf,.pdf" data-prova="${t.id}" hidden />
+              </label>
+              ${
+                t.prova
+                  ? `<button class="mini" data-remover-prova="${t.id}" title="Remover prova">×</button>`
+                  : ''
+              }
+            </div>
+          </div>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">${pendencias.join('')}</div>
       </div>`
   })
 
@@ -45,8 +74,60 @@ async function viewMinhasTurmas() {
     <div class="grade g2" style="margin-bottom:22px">${cartoes.join('')}</div>
     <div id="escolha-disciplinas"></div>`
 
-  conteudo.querySelectorAll('[data-turma]').forEach((card) => {
-    card.onclick = () => irPara(`turma/${card.dataset.turma}`)
+  // só a área de dados abre a turma — os controles da prova ficam de fora, senão
+  // clicar em "anexar" navegaria para outra tela no meio do upload
+  conteudo.querySelectorAll('[data-abrir-turma]').forEach((area) => {
+    area.onclick = () => irPara(`turma/${area.dataset.abrirTurma}`)
+  })
+
+  conteudo.querySelectorAll('[data-ver-prova]').forEach((caixa) => {
+    caixa.onclick = () => window.open(`/api/turmas/${caixa.dataset.verProva}/prova`, '_blank')
+  })
+
+  conteudo.querySelectorAll('[data-prova]').forEach((campo) => {
+    campo.onchange = async () => {
+      const arquivo = campo.files?.[0]
+      if (!arquivo) return
+
+      // confere no navegador antes de subir 10 MB à toa; o servidor confere de novo
+      if (arquivo.type !== 'application/pdf' && !arquivo.name.toLowerCase().endsWith('.pdf')) {
+        campo.value = ''
+        return avisar('A prova precisa ser um arquivo PDF.', 'erro')
+      }
+      if (arquivo.size > 10 * 1048576) {
+        campo.value = ''
+        return avisar(
+          `"${arquivo.name}" tem ${(arquivo.size / 1048576).toFixed(1)} MB e o limite é 10 MB. ` +
+            'Exportar o PDF direto do Word costuma resolver — arquivo escaneado fica bem maior.',
+          'erro',
+        )
+      }
+
+      try {
+        await enviarArquivo(
+          `/turmas/${campo.dataset.prova}/prova?nome=${encodeURIComponent(arquivo.name)}`,
+          arquivo,
+        )
+        await viewMinhasTurmas()
+        avisar('Prova anexada.')
+      } catch (e) {
+        campo.value = ''
+        avisar(e.message, 'erro')
+      }
+    }
+  })
+
+  conteudo.querySelectorAll('[data-remover-prova]').forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('Remover a prova anexada desta turma?')) return
+      try {
+        await api(`/turmas/${b.dataset.removerProva}/prova`, { method: 'DELETE' })
+        await viewMinhasTurmas()
+        avisar('Prova removida.')
+      } catch (e) {
+        avisar(e.message, 'erro')
+      }
+    }
   })
 
   await montaEscolhaDisciplinas('escolha-disciplinas', viewMinhasTurmas)

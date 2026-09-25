@@ -81,6 +81,33 @@ async function api(caminho, opcoes = {}) {
   }
 }
 
+/**
+ * Envia um arquivo cru (o PDF da prova). O `api()` manda JSON; aqui o corpo é o próprio
+ * arquivo, que é como a rota espera receber — sem base64, que engordaria 33% o upload.
+ */
+async function enviarArquivo(caminho, arquivo, tipo = 'application/pdf') {
+  abreAmpulheta()
+  try {
+    const resposta = await fetch('/api' + caminho, {
+      method: 'POST',
+      headers: { 'Content-Type': tipo },
+      body: arquivo,
+    })
+
+    let dados = null
+    try { dados = await resposta.json() } catch { /* resposta sem corpo */ }
+
+    if (!resposta.ok) {
+      const erro = new Error(dados?.erro || `Erro ${resposta.status}`)
+      erro.status = resposta.status
+      throw erro
+    }
+    return dados
+  } finally {
+    fechaAmpulheta()
+  }
+}
+
 function esc(texto) {
   return String(texto ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]),

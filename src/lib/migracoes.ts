@@ -85,6 +85,21 @@ CREATE TABLE IF NOT EXISTS aluno (
 );
 CREATE INDEX IF NOT EXISTS aluno_chave_idx ON aluno (nome_chave);
 
+/* Prova da turma em PDF — uma por turma (reenviar substitui a anterior).
+   Tabela separada de propósito: o binário não pode viajar junto nos "SELECT t.*" que o
+   código faz em várias telas, senão cada listagem carregaria o PDF inteiro sem precisar.
+   STORAGE EXTERNAL desliga a tentativa de compressão do Postgres — PDF já vem comprimido,
+   comprimir de novo só gasta CPU e não diminui nada. */
+CREATE TABLE IF NOT EXISTS prova_arquivo (
+  turma_id    UUID PRIMARY KEY REFERENCES turma(id)   ON DELETE CASCADE,
+  nome        TEXT NOT NULL,
+  tamanho     INT  NOT NULL,
+  conteudo    BYTEA NOT NULL,
+  enviado_por UUID REFERENCES usuario(id) ON DELETE SET NULL,
+  enviado_em  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE prova_arquivo ALTER COLUMN conteudo SET STORAGE EXTERNAL;
+
 CREATE TABLE IF NOT EXISTS ensalamento (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dia_semana   TEXT NOT NULL,

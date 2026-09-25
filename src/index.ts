@@ -31,6 +31,10 @@ app.use((req, res) => {
 
 app.use((erro: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(erro)
+  // arquivo acima do limite do express.raw/json: vira mensagem clara em vez de "erro interno"
+  if (erro?.type === 'entity.too.large' || erro?.status === 413) {
+    return res.status(413).json({ erro: 'Arquivo grande demais — o limite é 10 MB' })
+  }
   if (erro?.code === '23505') return res.status(409).json({ erro: 'Registro duplicado' })
   if (erro?.code === '23503') return res.status(409).json({ erro: 'Registro está em uso por outro cadastro' })
   res.status(500).json({ erro: 'Erro interno do servidor' })
