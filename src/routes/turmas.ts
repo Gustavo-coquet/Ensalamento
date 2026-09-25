@@ -3,6 +3,7 @@ import { q, q1 } from '../lib/db'
 import { exigeLogin, turmaPermitida } from '../lib/auth'
 import { atribuirDisciplinas, disciplinasComDono, lerItens, MAX_DISCIPLINAS } from '../lib/atribuicao'
 import { invalidarPorTurma } from '../lib/ensalamento'
+import { enviarProvaPorEmail } from '../lib/email'
 import {
   chaveNome,
   normalizaNome,
@@ -186,6 +187,8 @@ rotasTurmas.post('/:id/prova', raw({ type: 'application/pdf', limit: LIMITE_PROV
       .replace(/[\\/]/g, '')
       .slice(0, 120) || 'prova.pdf'
 
+  const jaTinha = await q1('SELECT turma_id FROM prova_arquivo WHERE turma_id = $1', [turma.id])
+
   await q(
     `INSERT INTO prova_arquivo (turma_id, nome, tamanho, conteudo, enviado_por)
      VALUES ($1, $2, $3, $4, $5)
@@ -195,7 +198,29 @@ rotasTurmas.post('/:id/prova', raw({ type: 'application/pdf', limit: LIMITE_PROV
     [turma.id, nome, conteudo.length, conteudo, req.usuario!.id],
   )
 
-  res.json({ ok: true, prova: { nome, tamanho: conteudo.length } })
+  /* Aviso por e-mail com o PDF em anexo. A prova JÁ está salva neste ponto: se o e-mail
+     falhar, o professor não perde o upload — o erro fica registrado na própria linha para
+     a coordenação ver depois. */
+  const email = await enviarProvaPorEmail({
+    professorNome: req.usuario!.nome,
+    professorEmail: req.usuario!.email,
+    disciplinaNumero: turma.numero,
+    disciplina: turma.disciplina,
+    curso: turma.curso,
+    diaSemana: turma.dia_semana,
+    turno: turma.turno,
+    nomeArquivo: nome,
+    conteudo,
+    substituicao: !!jaTinha,
+  })
+
+  await q(
+    'UPDATE prova_arquivo SET email_status = $1, email_em = now(), email_erro = $2 WHERE turma_id = $3',
+    [email.status, email.erro ?? null, turma.id],
+  )
+  if (email.status === 'erro') console.error('Falha ao enviar a prova por e-mail:', email.erro)
+
+  res.json({ ok: true, prova: { nome, tamanho: conteudo.length }, email: email.status })
 })
 
 rotasTurmas.delete('/:id/prova', async (req, res) => {

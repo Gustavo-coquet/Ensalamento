@@ -108,12 +108,19 @@ async function viewMinhasTurmas() {
       }
 
       try {
-        await enviarArquivo(
+        const r = await enviarArquivo(
           `/turmas/${campo.dataset.prova}/prova?nome=${encodeURIComponent(arquivo.name)}`,
           arquivo,
         )
         await viewMinhasTurmas()
-        avisar('Prova anexada.')
+        // o upload já valeu mesmo se o e-mail automático falhar — avisa sem assustar
+        if (r?.email === 'erro') {
+          avisar('Prova anexada, mas o e-mail automático para a coordenação falhou.', 'info')
+        } else if (r?.email === 'enviado') {
+          avisar('Prova anexada e enviada por e-mail para a coordenação.')
+        } else {
+          avisar('Prova anexada.')
+        }
       } catch (e) {
         campo.value = ''
         avisar(e.message, 'erro')

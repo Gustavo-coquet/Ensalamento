@@ -100,6 +100,13 @@ CREATE TABLE IF NOT EXISTS prova_arquivo (
 );
 ALTER TABLE prova_arquivo ALTER COLUMN conteudo SET STORAGE EXTERNAL;
 
+/* Resultado do aviso por e-mail disparado no upload: 'enviado', 'erro' ou 'desligado'
+   (quando o envio não está configurado). Fica guardado para dar para ver depois que uma
+   prova entrou mas o e-mail não saiu — senão a falha passaria despercebida. */
+ALTER TABLE prova_arquivo ADD COLUMN IF NOT EXISTS email_status TEXT;
+ALTER TABLE prova_arquivo ADD COLUMN IF NOT EXISTS email_em     TIMESTAMPTZ;
+ALTER TABLE prova_arquivo ADD COLUMN IF NOT EXISTS email_erro   TEXT;
+
 CREATE TABLE IF NOT EXISTS ensalamento (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dia_semana   TEXT NOT NULL,
