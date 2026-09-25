@@ -332,6 +332,25 @@ tbody tr:hover { background: var(--painel-2); }
 .aviso.ok { color: var(--ok); border-color: #2c5c3f; background: #12291d; }
 .aviso.info { color: var(--texto-2); border-color: var(--linha); background: var(--fundo-2); }
 
+/* Aviso disparado por uma ação (salvar, excluir…) flutua no topo da tela em vez de ficar
+   preso no começo do conteúdo — numa página comprida, como a grade de professores, a
+   mensagem de erro aparecia fora da área visível e dava a impressão de que "não
+   aconteceu nada". Os avisos fixos escritos direto nas telas continuam como estavam. */
+.aviso.flutuante {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  left: auto;
+  z-index: 60;
+  max-width: 420px;
+  margin: 0;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .45);
+}
+
+@media (max-width: 620px) {
+  .aviso.flutuante { left: 12px; right: 12px; max-width: none; }
+}
+
 .vazio { color: var(--texto-3); font-size: 14px; padding: 22px 0; text-align: center; }
 
 /* --------------------------------- login --------------------------------- */

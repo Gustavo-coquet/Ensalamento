@@ -157,14 +157,23 @@ function chaveSimples(texto) {
     .toLowerCase()
 }
 
-/** Mostra um aviso temporário no topo do conteúdo. */
+/**
+ * Mostra um aviso temporário flutuando no topo da tela. Flutua (e não fica preso no
+ * começo do conteúdo) porque em página comprida — a grade de professores, por exemplo —
+ * o aviso de erro nascia acima da área visível e parecia que a ação não tinha feito nada.
+ * Erro fica mais tempo na tela que confirmação: é ele que precisa ser lido.
+ */
 function avisar(mensagem, tipo = 'ok') {
-  const alvo = el('conteudo')
   const div = document.createElement('div')
-  div.className = `aviso ${tipo}`
+  div.className = `aviso ${tipo} flutuante`
   div.textContent = mensagem
-  alvo.prepend(div)
-  setTimeout(() => div.remove(), 5200)
+  document.body.appendChild(div)
+
+  // empilha, pra um aviso não cobrir o outro quando vêm dois juntos
+  const abertos = document.querySelectorAll('.aviso.flutuante')
+  div.style.top = `${18 + (abertos.length - 1) * 60}px`
+
+  setTimeout(() => div.remove(), tipo === 'erro' ? 9000 : 5200)
 }
 
 function selectDias(valorAtual, extra = '') {

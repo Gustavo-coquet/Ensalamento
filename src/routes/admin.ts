@@ -461,9 +461,13 @@ rotasAdmin.get('/atribuicao', exigeAdmin, async (_req, res) => {
 
 /** O administrador preenchendo pelo professor — mesma regra do que ele faria sozinho. */
 rotasAdmin.post('/atribuicao/:professorId', exigeAdmin, async (req, res) => {
-  const professor = await q1<any>("SELECT id FROM usuario WHERE id = $1 AND papel IN ('PROFESSOR','ADMIN')", [
-    req.params.professorId,
-  ])
+  // COORDENADOR também leciona (é professor com poderes extras de visualização e de
+  // gerar salas) — sem ele aqui, salvar a grade de um coordenador dava "não encontrado"
+  // e a alteração não chegava ao banco.
+  const professor = await q1<any>(
+    "SELECT id FROM usuario WHERE id = $1 AND papel IN ('PROFESSOR','ADMIN','COORDENADOR')",
+    [req.params.professorId],
+  )
   if (!professor) return res.status(404).json({ erro: 'Professor não encontrado' })
 
   const resultado = await atribuirDisciplinas(professor.id, lerItens(req.body?.itens))
