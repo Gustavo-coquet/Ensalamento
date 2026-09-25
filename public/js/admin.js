@@ -525,7 +525,6 @@ function desenhaSalas(ensalamento) {
         <div class="linha-botoes nao-imprime">
           <button class="secundaria" id="o-alfa" ${!porDisciplina ? 'style="border-color:var(--acento)"' : ''}>Ordem alfabética</button>
           <button class="secundaria" id="o-disc" ${porDisciplina ? 'style="border-color:var(--acento)"' : ''}>Por disciplina</button>
-          <button class="secundaria" onclick="window.print()">Imprimir</button>
           <button class="acao" onclick="baixar('/admin/ensalamento/${ensalamento.diaSemana}/${ensalamento.turno}/pdf?ordem=${ordenacaoSalas}')">PDF (1 sala por folha)</button>
           <button class="secundaria" onclick="baixar('/admin/export/salas/${ensalamento.diaSemana}/${ensalamento.turno}')">CSV</button>
         </div>
