@@ -96,6 +96,9 @@ async function viewPainel() {
       <div class="valor">${valor}</div><div class="rotulo">${rotulo}</div>
     </div>`
 
+  // quantas turmas já têm prova: é o que o botão do ZIP vai baixar
+  const provasAnexadas = Math.max(0, (d.resumoGeral?.turmas ?? 0) - (d.resumoGeral?.semProva ?? 0))
+
   const pendencias = []
   if (d.totais.semProfessor) pendencias.push(`${d.totais.semProfessor} turma(s) sem professor vinculado`)
   if (d.totais.semDia) pendencias.push(`${d.totais.semDia} turma(s) sem dia de prova`)
@@ -128,6 +131,15 @@ async function viewPainel() {
       <div class="linha-botoes">
         <button class="secundaria" onclick="baixar('/admin/export/resumo.csv')">Resumo geral (cartão-resposta)</button>
         <button class="secundaria" onclick="baixar('/admin/export/gabaritos.csv')">Gabaritos</button>
+        ${
+          // pacote com todas as provas: só do admin, e só aparece quando há o que baixar
+          ehAdmin()
+            ? `<button class="secundaria" onclick="baixar('/admin/export/provas.zip')"
+                       ${provasAnexadas ? '' : 'disabled title="Nenhuma prova anexada ainda"'}>
+                 Todas as provas em ZIP (${provasAnexadas})
+               </button>`
+            : ''
+        }
       </div>
       <p class="pequeno texto-3" style="margin-top:12px">
         O resumo sai com CURSO, DISCIPLINA, PROFESSOR, RA, CÓDIGO DE BARRAS, NOME e TURNO —

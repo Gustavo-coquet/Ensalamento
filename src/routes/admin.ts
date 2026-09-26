@@ -13,6 +13,7 @@ import {
 import { paraCSV } from '../lib/csv'
 import { carregarEnsalamento, gerarEnsalamento, invalidarEnsalamento } from '../lib/ensalamento'
 import { enviarPdfSalas } from '../lib/pdfSalas'
+import { ZipSimples, nomeSeguroArquivo } from '../lib/zipSimples'
 import {
   CURSOS,
   DIAS,
@@ -673,6 +674,49 @@ rotasAdmin.get('/export/gabaritos.csv', async (_req, res) => {
 })
 
 /** Salas de um dia + turno: uma linha por aluno alocado. */
+/**
+ * Todas as provas anexadas num ZIP, uma pasta por professor — para imprimir tudo de uma
+ * vez. Continua exigeAdmin: o coordenador não abre prova de turma que não é dele, então
+ * não faria sentido entregar o pacote inteiro a ele por outro caminho.
+ *
+ * Lê uma prova por vez e já escreve no pacote, em vez de carregar as 49 na memória.
+ */
+rotasAdmin.get('/export/provas.zip', exigeAdmin, async (_req, res) => {
+  const provas = await q<any>(
+    `SELECT p.turma_id, p.nome, p.enviado_em,
+            d.numero, d.nome AS disciplina, t.turno,
+            COALESCE(u.nome, 'sem professor') AS professor
+       FROM prova_arquivo p
+       JOIN turma t      ON t.id = p.turma_id
+       JOIN disciplina d ON d.id = t.disciplina_id
+       LEFT JOIN usuario u ON u.id = t.professor_id
+      ORDER BY professor ASC, d.numero ASC`,
+  )
+
+  const hoje = new Date().toISOString().slice(0, 10)
+  res.setHeader('Content-Type', 'application/zip')
+  res.setHeader('Content-Disposition', `attachment; filename="provas-${hoje}.zip"`)
+
+  const zip = new ZipSimples(res)
+
+  for (const p of provas) {
+    // busca o binário só na hora de escrever — assim a memória não guarda todas juntas
+    const arquivo = await q1<{ conteudo: Buffer }>(
+      'SELECT conteudo FROM prova_arquivo WHERE turma_id = $1',
+      [p.turma_id],
+    )
+    if (!arquivo) continue
+
+    const pasta = nomeSeguroArquivo(p.professor, 'sem professor')
+    const turno = (ROTULO_TURNO as any)[p.turno] ?? p.turno
+    const nome = nomeSeguroArquivo(`${p.numero} - ${p.disciplina} - ${turno}.pdf`, 'prova.pdf')
+
+    zip.adiciona(`${pasta}/${nome}`, arquivo.conteudo, new Date(p.enviado_em))
+  }
+
+  zip.finaliza()
+})
+
 rotasAdmin.get('/export/salas/:dia/:turno', async (req, res) => {
   const dia = validaDia(req.params.dia)
   const turno = validaTurno(req.params.turno)
