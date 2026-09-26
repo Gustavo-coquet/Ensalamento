@@ -48,9 +48,18 @@ function montaResumoPorProfessor(d) {
       ? `<span class="pill alerta" style="margin:1px 4px 1px 0">${n} ${rotuloFalta}</span>`
       : `<span class="pill ok" style="margin:1px 4px 1px 0">${rotuloOk}</span>`
 
+  // O nome vira link para as turmas daquele professor (com as provas anexadas). Só para
+  // o administrador: o coordenador não abre turma que não é dele, então o link levaria
+  // a uma tela em que as prévias não carregariam.
+  const celulaNome = (nome, p, destaque) => {
+    if (destaque) return `<strong>${esc(nome)}</strong>`
+    if (!ehAdmin() || !p.id) return esc(nome)
+    return `<a href="#professor/${p.id}" title="Ver as turmas e as provas de ${esc(nome)}">${esc(nome)}</a>`
+  }
+
   const linha = (nome, p, destaque = false) => `
     <tr>
-      <td>${destaque ? `<strong>${esc(nome)}</strong>` : esc(nome)}</td>
+      <td>${celulaNome(nome, p, destaque)}</td>
       <td>${p.turmas} disciplina${p.turmas === 1 ? '' : 's'} cadastrada${p.turmas === 1 ? '' : 's'}</td>
       <td>
         ${
@@ -329,6 +338,85 @@ function blocoSemProfessorPorTurno(disciplinas, turmas, turno, titulo) {
       <tbody>${linhas}</tbody>
     </table>
   </div>`
+}
+
+/**
+ * Turmas de um professor com as provas anexadas — é a tela que abre ao clicar no nome
+ * dele no resumo do Painel, para a coordenação conferir a prova sem pedir por e-mail.
+ * É só leitura: quem anexa e troca continua sendo o professor, na tela dele.
+ */
+async function viewProvasDoProfessor(professorId) {
+  const { turmas } = await api('/turmas?todas=1')
+  const doProfessor = turmas.filter((t) => t.professor && t.professor.id === professorId)
+  const professor = doProfessor[0]?.professor
+
+  const comProva = doProfessor.filter((t) => t.prova).length
+
+  const cartoes = doProfessor
+    .map(
+      (t) => `
+      <div class="cartao cantos card-turma"><div class="canto"></div>
+        <div class="turma-conteudo">
+          <div class="turma-dados" style="cursor:default">
+            <div class="rotulo-secao">${esc(ROTULO_CURSO[t.curso] || t.curso)}</div>
+            <h3 style="margin-bottom:8px">${esc(t.disciplina)}</h3>
+            <div class="pequeno texto-3" style="margin-bottom:12px">
+              ${t.diaSemana ? esc(ROTULO_DIA[t.diaSemana]) : 'dia não definido'}
+              · ${esc(ROTULO_TURNO[t.turno] || t.turno)}
+              · ${t.totalAlunos} aluno${t.totalAlunos === 1 ? '' : 's'}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${t.totalAlunos ? '<span class="pill ok">alunos cadastrados</span>' : '<span class="pill alerta">sem alunos</span>'}
+              ${t.gabaritoCompleto ? '<span class="pill ok">gabarito completo</span>' : '<span class="pill alerta">gabarito incompleto</span>'}
+            </div>
+          </div>
+
+          <div class="turma-prova">
+            ${
+              t.prova
+                ? `<div class="prova-caixa" data-ver-prova="${t.id}" title="Abrir ${esc(t.prova.nome)}">
+                     <iframe class="prova-miniatura" loading="lazy" title="Prévia da prova"
+                             src="/api/turmas/${t.id}/prova#toolbar=0&navpanes=0&scrollbar=0&view=FitH"></iframe>
+                   </div>
+                   <div class="pequeno texto-3 prova-legenda">${esc(t.prova.nome)} · ${(t.prova.tamanho / 1048576).toFixed(1)} MB</div>
+                   <div class="linha-botoes" style="margin-top:8px;justify-content:center">
+                     <button class="secundaria" data-ver-prova="${t.id}" style="padding:6px 12px;font-size:12.5px">abrir prova</button>
+                   </div>`
+                : `<div class="prova-vazia pequeno texto-3">
+                     <span class="prova-rotulo">sem prova anexada</span>
+                     <span class="prova-regra">só o professor anexa,<br />na tela dele</span>
+                   </div>`
+            }
+          </div>
+        </div>
+      </div>`,
+    )
+    .join('')
+
+  el('conteudo').innerHTML = `
+    <button class="secundaria" id="voltar-painel" style="margin-bottom:18px">← voltar ao painel</button>
+
+    <div class="rotulo-secao">Provas do professor</div>
+    <h2 class="titulo">${esc(professor ? nomeExibicao(professor.nome) : 'Professor')}</h2>
+
+    <p class="pequeno texto-3" style="margin:-10px 0 20px">
+      ${doProfessor.length} turma${doProfessor.length === 1 ? '' : 's'}
+      · ${comProva} com prova anexada
+      ${professor?.email ? `· ${esc(professor.email)}` : ''}
+      — clique na miniatura para abrir a prova inteira.
+    </p>
+
+    ${
+      doProfessor.length
+        ? `<div class="grade g2">${cartoes}</div>`
+        : '<div class="cartao cantos"><div class="canto"></div><div class="vazio">Este professor não tem turma cadastrada.</div></div>'
+    }`
+
+  el('voltar-painel').onclick = () => irPara('painel')
+
+  document.querySelectorAll('[data-ver-prova]').forEach((alvo) => {
+    alvo.onclick = () => window.open(`/api/turmas/${alvo.dataset.verProva}/prova`, '_blank')
+  })
 }
 
 async function viewAdminTurmas() {

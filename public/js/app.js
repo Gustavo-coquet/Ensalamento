@@ -82,7 +82,14 @@ async function rotear() {
 
   if (base === 'turmas' || base === 'admin-turmas') listaDeTurmasAnterior = base
 
-  desenhaMenu(base === 'turma' ? listaDeTurmasAnterior || (vePainelAdmin() ? 'admin-turmas' : 'turmas') : base)
+  // a tela de provas de um professor é um detalhe do Painel — mantém o Painel aceso no menu
+  const itemAceso =
+    base === 'turma'
+      ? listaDeTurmasAnterior || (vePainelAdmin() ? 'admin-turmas' : 'turmas')
+      : base === 'professor'
+        ? 'painel'
+        : base
+  desenhaMenu(itemAceso)
   el('conteudo').innerHTML = '<div class="vazio">carregando…</div>'
 
   const telas = {
@@ -94,11 +101,13 @@ async function rotear() {
     turmas: viewMinhasTurmas,
     senha: viewSenha,
     turma: () => viewTurma(param),
+    // provas de um professor específico, abertas pelo nome dele no resumo do Painel
+    professor: () => viewProvasDoProfessor(param),
   }
 
   // Cadastro em lote e Manutenção continuam só do admin — painel/salas/quadro de turmas
   // o coordenador também usa.
-  const somenteAdmin = ['importar', 'manutencao']
+  const somenteAdmin = ['importar', 'manutencao', 'professor']
   const somenteAdminOuCoordenador = ['painel', 'salas', 'admin-turmas']
   if (somenteAdmin.includes(base) && !ehAdmin()) return irPara(vePainelAdmin() ? 'painel' : 'turmas')
   if (somenteAdminOuCoordenador.includes(base) && !vePainelAdmin()) return irPara('turmas')
