@@ -147,9 +147,9 @@ async function viewPainel() {
  */
 /**
  * Célula de uma turma dentro dos quadros: professor + disciplina (ou turno, no quadro
- * de optativas) centralizados, com duas linhas embaixo — bolinha + texto, uma embaixo
+ * de optativas) centralizados, com três linhas embaixo — bolinha + texto, uma embaixo
  * da outra — pra "tem aluno cadastrado" (mais importante, é o que interessa pra prova
- * acontecer) e "gabarito completo" (menos importante). Cada bolinha verde quando ok e
+ * acontecer), "gabarito completo" e "prova anexada". Cada bolinha verde quando ok e
  * vermelha quando falta. Nome do professor e da disciplina ficam acinzentados quando a
  * turma está fora da mistura de salas — cor discreta, que não compete com o vermelho das
  * bolinhas de pendência. Centraliza aqui pra não repetir em cada quadro.
@@ -180,6 +180,7 @@ function celulaTurma(t, linhaSecundaria = nomeCompactoDisciplina(t.disciplina)) 
     <div style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:4px">
       ${linhaStatus(okAlunos, 'Turma cadastrada', 'Sem aluno cadastrado')}
       ${linhaStatus(okGabarito, 'Gabarito cadastrado', 'Gabarito incompleto')}
+      ${linhaStatus(!!t.prova, 'Prova anexada', 'Sem prova anexada')}
     </div>
     ${
       podeExcluir
@@ -430,12 +431,12 @@ async function viewAdminTurmas() {
     <p class="pequeno texto-3" style="margin:-10px 0 20px">
       As turmas nascem quando um professor escolhe as disciplinas dele — em
       <em>Cadastro em lote</em> você faz isso por ele, se precisar. Clique numa turma nos
-      quadros abaixo pra abrir ela. Duas bolinhas por turma: a primeira é se já tem
-      <strong>aluno cadastrado</strong>, a segunda se o <strong>gabarito</strong> está
-      completo — <strong class="texto-bolinha-ok">verde</strong> quando ok,
-      <strong class="texto-bolinha-erro">vermelha</strong> quando falta. Professor e
-      disciplina em <strong class="texto-fora-mistura">laranja</strong> estão fora da
-      mistura de salas.
+      quadros abaixo pra abrir ela. Três bolinhas por turma: se já tem
+      <strong>aluno cadastrado</strong>, se o <strong>gabarito</strong> está completo e se
+      a <strong>prova</strong> foi anexada — <strong class="texto-bolinha-ok">verde</strong>
+      quando ok, <strong class="texto-bolinha-erro">vermelha</strong> quando falta.
+      Professor e disciplina <strong class="texto-nao-misturada">acinzentados</strong>
+      estão fora da mistura de salas.
     </p>
 
     ${montaQuadroTurmas(turmas)}
