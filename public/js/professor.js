@@ -33,8 +33,8 @@ async function viewMinhasTurmas() {
          </div>
          <div class="pequeno texto-3 prova-legenda">${esc(t.prova.nome)} · ${(t.prova.tamanho / 1048576).toFixed(1)} MB</div>`
       : `<div class="prova-vazia pequeno texto-3">
-           sem prova anexada<br />
-           <span class="prova-regra">somente PDF<br />até 10 MB</span>
+           <span class="prova-rotulo">sem prova anexada</span>
+           <span class="prova-regra">arraste o PDF aqui<br />ou use o botão · até 10 MB</span>
          </div>`
 
     return `
@@ -53,7 +53,7 @@ async function viewMinhasTurmas() {
             <div style="display:flex;gap:6px;flex-wrap:wrap">${pendencias.join('')}</div>
           </div>
 
-          <div class="turma-prova">
+          <div class="turma-prova" data-solta-prova="${t.id}">
             ${previa}
             <div class="linha-botoes" style="margin-top:8px;justify-content:center">
               <label class="botao-arquivo" title="Arquivo em PDF, com no máximo 10 MB">
@@ -66,7 +66,7 @@ async function viewMinhasTurmas() {
                   : ''
               }
             </div>
-            <div class="pequeno texto-3 prova-regra" style="margin-top:6px">PDF, até 10 MB</div>
+            <div class="pequeno texto-3 prova-regra" style="margin-top:6px">PDF, até 10 MB · pode arrastar</div>
           </div>
         </div>
       </div>`
@@ -92,39 +92,31 @@ async function viewMinhasTurmas() {
     campo.onchange = async () => {
       const arquivo = campo.files?.[0]
       if (!arquivo) return
+      const ok = await enviaProva(campo.dataset.prova, arquivo)
+      if (!ok) campo.value = '' // deixa escolher o mesmo arquivo de novo depois de um erro
+    }
+  })
 
-      // confere no navegador antes de subir 10 MB à toa; o servidor confere de novo
-      if (arquivo.type !== 'application/pdf' && !arquivo.name.toLowerCase().endsWith('.pdf')) {
-        campo.value = ''
-        return avisar('A prova precisa ser um arquivo PDF.', 'erro')
-      }
-      if (arquivo.size > 10 * 1048576) {
-        campo.value = ''
-        return avisar(
-          `"${arquivo.name}" tem ${(arquivo.size / 1048576).toFixed(1)} MB e o limite é 10 MB. ` +
-            'Exportar o PDF direto do Word costuma resolver — arquivo escaneado fica bem maior.',
-          'erro',
-        )
-      }
+  // Arrastar o PDF de qualquer lugar do computador para cima do quadro da prova faz o
+  // mesmo que o botão. A área inteira da direita do card aceita a soltura.
+  conteudo.querySelectorAll('[data-solta-prova]').forEach((zona) => {
+    const realce = (ligado) => zona.classList.toggle('arrastando', ligado)
 
-      try {
-        const r = await enviarArquivo(
-          `/turmas/${campo.dataset.prova}/prova?nome=${encodeURIComponent(arquivo.name)}`,
-          arquivo,
-        )
-        await viewMinhasTurmas()
-        // o upload já valeu mesmo se o e-mail automático falhar — avisa sem assustar
-        if (r?.email === 'erro') {
-          avisar('Prova anexada, mas o e-mail automático para a coordenação falhou.', 'info')
-        } else if (r?.email === 'enviado') {
-          avisar('Prova anexada e enviada por e-mail para a coordenação.')
-        } else {
-          avisar('Prova anexada.')
-        }
-      } catch (e) {
-        campo.value = ''
-        avisar(e.message, 'erro')
+    zona.ondragenter = (ev) => { ev.preventDefault(); realce(true) }
+    zona.ondragover = (ev) => { ev.preventDefault(); realce(true) }
+    // dragleave dispara também ao passar por cima dos filhos; só apaga o realce quando
+    // o ponteiro sai da zona de verdade
+    zona.ondragleave = (ev) => { if (!zona.contains(ev.relatedTarget)) realce(false) }
+
+    zona.ondrop = async (ev) => {
+      ev.preventDefault()
+      realce(false)
+      const arquivo = ev.dataTransfer?.files?.[0]
+      if (!arquivo) return avisar('Não consegui ler o arquivo arrastado. Tente pelo botão.', 'erro')
+      if (ev.dataTransfer.files.length > 1) {
+        avisar('É uma prova por turma — usei o primeiro arquivo que você soltou.', 'info')
       }
+      await enviaProva(zona.dataset.soltaProva, arquivo)
     }
   })
 
@@ -379,6 +371,47 @@ function editorDisciplinas({ alvo, disciplinas, itens, maximo = 10, salvar, aoTe
   }
 
   desenha()
+}
+
+/**
+ * Envia o PDF da prova de uma turma. Vale para os dois caminhos — o botão "anexar" e o
+ * arquivo arrastado para cima do card —, por isso a checagem mora aqui, num lugar só.
+ * Devolve true quando deu certo.
+ */
+async function enviaProva(turmaId, arquivo) {
+  // confere no navegador antes de subir 10 MB à toa; o servidor confere tudo de novo
+  if (arquivo.type !== 'application/pdf' && !arquivo.name.toLowerCase().endsWith('.pdf')) {
+    avisar(`"${arquivo.name}" não é PDF. A prova precisa ser um arquivo PDF.`, 'erro')
+    return false
+  }
+  if (arquivo.size > 10 * 1048576) {
+    avisar(
+      `"${arquivo.name}" tem ${(arquivo.size / 1048576).toFixed(1)} MB e o limite é 10 MB. ` +
+        'Exportar o PDF direto do Word costuma resolver — arquivo escaneado fica bem maior.',
+      'erro',
+    )
+    return false
+  }
+
+  try {
+    const r = await enviarArquivo(
+      `/turmas/${turmaId}/prova?nome=${encodeURIComponent(arquivo.name)}`,
+      arquivo,
+    )
+    await viewMinhasTurmas()
+    // o upload já valeu mesmo se o e-mail automático falhar — avisa sem assustar
+    if (r?.email === 'erro') {
+      avisar('Prova anexada, mas o e-mail automático para a coordenação falhou.', 'info')
+    } else if (r?.email === 'enviado') {
+      avisar('Prova anexada e enviada por e-mail para a coordenação.')
+    } else {
+      avisar('Prova anexada.')
+    }
+    return true
+  } catch (e) {
+    avisar(e.message, 'erro')
+    return false
+  }
 }
 
 /** Painel do professor: ele mesmo monta a lista das disciplinas que leciona. */

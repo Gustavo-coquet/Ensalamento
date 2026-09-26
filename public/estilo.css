@@ -290,9 +290,20 @@ tbody tr:hover { background: var(--painel-2); }
 .prova-vazia {
   width: 140px; height: 180px;
   border: 1px dashed var(--linha); border-radius: 3px;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
   text-align: center; padding: 10px;
 }
+.prova-vazia .prova-rotulo { font-weight: 600; }
+
+/* Arrastar um PDF para cima da área da prova acende a borda — assim dá para ver que
+   aquele card é o alvo antes de soltar, quando a tela tem vários. */
+.turma-prova.arrastando .prova-vazia,
+.turma-prova.arrastando .prova-caixa {
+  border-color: var(--acento);
+  border-style: dashed;
+  background: rgba(79, 209, 197, .12);
+}
+.turma-prova.arrastando .prova-regra { color: var(--acento); }
 
 .prova-legenda { margin-top: 6px; word-break: break-word; line-height: 1.3; }
 

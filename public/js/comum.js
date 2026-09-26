@@ -234,3 +234,9 @@ function selectTurnos(valorAtual, extra = '', permitidos = null) {
 function baixar(caminho) {
   window.location.href = '/api' + caminho
 }
+
+/* Soltar um arquivo fora de uma área que aceita arrastar faz o navegador ABRIR o arquivo
+   e sair do sistema — perdendo o que estava na tela. Isto cancela esse comportamento
+   padrão na janela inteira; as áreas que aceitam soltura tratam o evento antes. */
+window.addEventListener('dragover', (ev) => ev.preventDefault())
+window.addEventListener('drop', (ev) => ev.preventDefault())
