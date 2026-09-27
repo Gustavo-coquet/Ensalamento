@@ -684,13 +684,14 @@ rotasAdmin.get('/export/gabaritos.csv', async (_req, res) => {
 rotasAdmin.get('/export/provas.zip', exigeAdmin, async (_req, res) => {
   const provas = await q<any>(
     `SELECT p.turma_id, p.nome, p.enviado_em,
-            d.numero, d.nome AS disciplina, t.turno,
-            COALESCE(u.nome, 'sem professor') AS professor
+            d.nome AS disciplina, t.turno,
+            COALESCE(u.nome, 'sem professor') AS professor,
+            (SELECT COUNT(*)::int FROM aluno a WHERE a.turma_id = t.id) AS total_alunos
        FROM prova_arquivo p
        JOIN turma t      ON t.id = p.turma_id
        JOIN disciplina d ON d.id = t.disciplina_id
        LEFT JOIN usuario u ON u.id = t.professor_id
-      ORDER BY professor ASC, d.numero ASC`,
+      ORDER BY professor ASC, d.nome ASC`,
   )
 
   const hoje = new Date().toISOString().slice(0, 10)
@@ -709,7 +710,12 @@ rotasAdmin.get('/export/provas.zip', exigeAdmin, async (_req, res) => {
 
     const pasta = nomeSeguroArquivo(p.professor, 'sem professor')
     const turno = (ROTULO_TURNO as any)[p.turno] ?? p.turno
-    const nome = nomeSeguroArquivo(`${p.numero} - ${p.disciplina} - ${turno}.pdf`, 'prova.pdf')
+    // duas cópias a mais que o número de alunos: reserva para erro de impressão e imprevisto
+    const copias = (p.total_alunos ?? 0) + 2
+    const nome = nomeSeguroArquivo(
+      `${p.disciplina} - ${turno} - ${copias} cópias.pdf`,
+      'prova.pdf',
+    )
 
     zip.adiciona(`${pasta}/${nome}`, arquivo.conteudo, new Date(p.enviado_em))
   }
