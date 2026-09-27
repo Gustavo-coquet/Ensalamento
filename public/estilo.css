@@ -208,14 +208,19 @@ tbody tr:hover { background: var(--painel-2); }
   color: #1c2b3a;
 }
 .quadro-turmas th { color: #6b7a89; }
-.quadro-turmas td { border-bottom-color: rgba(20, 41, 74, .08); }
+
+/* Linha divisória entre períodos com mais presença: como o fundo agora é branco em tudo,
+   é ela que faz a separação visual que antes vinha da faixa colorida. */
+.quadro-turmas td { border-bottom: 1px solid rgba(20, 41, 74, .28); }
 .quadro-turmas .texto-2 { color: #3d4c5c; }
 .quadro-turmas .texto-3 { color: #8291a0; }
 
-/* Uma faixa de cor por período, intercalando clara/escura, agora sobre fundo branco. */
-.quadro-turmas tbody tr.linha-periodo-a td { background: rgba(79, 209, 197, 0.05); }
-.quadro-turmas tbody tr.linha-periodo-b td { background: rgba(79, 209, 197, 0.13); }
-.quadro-turmas tbody tr:hover td { background: #f2f8f8; }
+/* Fundo do quadro é sempre branco: quem carrega cor aqui é a ficha da turma (branca ou
+   cinza, conforme entra ou não na mistura), e faixa por período competiria com isso.
+   O :hover também fica neutro — sem ele, a regra global escureceria a linha inteira. */
+.quadro-turmas tbody tr.linha-periodo-a td,
+.quadro-turmas tbody tr.linha-periodo-b td,
+.quadro-turmas tbody tr:hover td { background: #fff; }
 
 /* Cada turma é uma ficha dentro da célula. A letra é igual para todas; quem diz se ela
    entra na mistura de salas é o FUNDO — branco entra, cinza fica de fora. Assim a
