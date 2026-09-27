@@ -80,15 +80,14 @@ async function rotear() {
   const rota = location.hash.slice(1) || (vePainelAdmin() ? 'painel' : 'turmas')
   const [base, param] = rota.split('/')
 
+  // guarda de onde a turma foi aberta: as duas listas e também a página de um professor
   if (base === 'turmas' || base === 'admin-turmas') listaDeTurmasAnterior = base
+  else if (base === 'professor' && param) listaDeTurmasAnterior = `professor/${param}`
 
   // a tela de provas de um professor é um detalhe do Painel — mantém o Painel aceso no menu
-  const itemAceso =
-    base === 'turma'
-      ? listaDeTurmasAnterior || (vePainelAdmin() ? 'admin-turmas' : 'turmas')
-      : base === 'professor'
-        ? 'painel'
-        : base
+  let itemAceso = base
+  if (base === 'turma') itemAceso = listaDeTurmasAnterior || (vePainelAdmin() ? 'admin-turmas' : 'turmas')
+  if (base === 'professor' || String(itemAceso).startsWith('professor')) itemAceso = 'painel'
   desenhaMenu(itemAceso)
   el('conteudo').innerHTML = '<div class="vazio">carregando…</div>'
 

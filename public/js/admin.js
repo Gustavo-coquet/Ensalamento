@@ -371,7 +371,7 @@ async function viewProvasDoProfessor(professorId) {
       (t) => `
       <div class="cartao cantos card-turma"><div class="canto"></div>
         <div class="turma-conteudo">
-          <div class="turma-dados" style="cursor:default">
+          <div class="turma-dados" data-abrir-turma="${t.id}" title="Abrir a turma (gabarito e alunos)">
             <div class="rotulo-secao">${esc(ROTULO_CURSO[t.curso] || t.curso)}</div>
             <h3 style="margin-bottom:8px">${esc(t.disciplina)}</h3>
             <div class="pequeno texto-3" style="margin-bottom:12px">
@@ -437,6 +437,12 @@ async function viewProvasDoProfessor(professorId) {
     }`
 
   el('voltar-painel').onclick = () => irPara('painel')
+
+  // clicar nos dados do card abre a turma — o administrador edita gabarito e alunos de
+  // qualquer turma, então daqui ele resolve sem ter que achar a turma no quadro
+  document.querySelectorAll('[data-abrir-turma]').forEach((area) => {
+    area.onclick = () => irPara(`turma/${area.dataset.abrirTurma}`)
+  })
 
   document.querySelectorAll('[data-ver-prova]').forEach((alvo) => {
     alvo.onclick = () => window.open(`/api/turmas/${alvo.dataset.verProva}/prova`, '_blank')
