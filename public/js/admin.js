@@ -412,12 +412,22 @@ async function viewProvasDoProfessor(professorId) {
     <div class="rotulo-secao">Provas do professor</div>
     <h2 class="titulo">${esc(professor ? nomeExibicao(professor.nome) : 'Professor')}</h2>
 
-    <p class="pequeno texto-3" style="margin:-10px 0 20px">
+    <p class="pequeno texto-3" style="margin:-10px 0 14px">
       ${doProfessor.length} turma${doProfessor.length === 1 ? '' : 's'}
       · ${comProva} com prova anexada
       ${professor?.email ? `· ${esc(professor.email)}` : ''}
       — clique na miniatura para abrir a prova inteira.
     </p>
+
+    ${
+      comProva
+        ? `<div class="linha-botoes" style="margin-bottom:20px">
+             <button class="secundaria" onclick="baixar('/turmas/provas.zip?professor=${professorId}')">
+               Baixar as provas deste professor em ZIP (${comProva})
+             </button>
+           </div>`
+        : ''
+    }
 
     ${
       doProfessor.length

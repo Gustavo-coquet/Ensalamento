@@ -4,6 +4,7 @@ import { exigeLogin, turmaPermitida } from '../lib/auth'
 import { atribuirDisciplinas, disciplinasComDono, lerItens, MAX_DISCIPLINAS } from '../lib/atribuicao'
 import { invalidarPorTurma } from '../lib/ensalamento'
 import { enviarProvaPorEmail } from '../lib/email'
+import { enviarProvasEmZip } from '../lib/provasZip'
 import {
   chaveNome,
   normalizaNome,
@@ -79,6 +80,37 @@ rotasTurmas.get('/disciplinas/catalogo', async (_req, res) => {
 rotasTurmas.post('/minhas-disciplinas', async (req, res) => {
   const resultado = await atribuirDisciplinas(req.usuario!.id, lerItens(req.body?.itens))
   res.json({ ok: true, ...resultado })
+})
+
+/**
+ * Pacote com as provas do próprio professor, já com a quantidade de cópias no nome de
+ * cada arquivo. O administrador pode pedir o de outra pessoa com ?professor=<id> — é o
+ * botão da tela de provas por professor. Vem ANTES de "/:id" porque senão aquela rota
+ * capturaria "provas.zip" como se fosse um id de turma.
+ */
+rotasTurmas.get('/provas.zip', async (req, res) => {
+  const usuario = req.usuario!
+  const pedido = String(req.query.professor ?? '').trim()
+  // só o administrador baixa o pacote de outra pessoa; os demais, sempre o próprio
+  const professorId = pedido && usuario.papel === 'ADMIN' ? pedido : usuario.id
+
+  const dono =
+    professorId === usuario.id
+      ? usuario.nome
+      : (await q1<{ nome: string }>('SELECT nome FROM usuario WHERE id = $1', [professorId]))?.nome ?? ''
+
+  const apelido = dono
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w]+/g, '-')
+    .toLowerCase()
+    .replace(/^-|-$/g, '')
+
+  await enviarProvasEmZip(res, {
+    professorId,
+    pastaPorProfessor: false,
+    nomeArquivo: `provas-${apelido || 'professor'}-${new Date().toISOString().slice(0, 10)}.zip`,
+  })
 })
 
 rotasTurmas.get('/:id', async (req, res) => {

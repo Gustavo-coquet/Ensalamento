@@ -72,9 +72,27 @@ async function viewMinhasTurmas() {
       </div>`
   })
 
+  // pacote com as provas dele, já com a quantidade de cópias no nome de cada arquivo —
+  // é o que ele leva para a reprografia
+  const comProva = turmas.filter((t) => t.prova).length
+
   conteudo.innerHTML = `
     <div class="rotulo-secao">Minhas turmas</div>
     <h2 class="titulo">${turmas.length} turma${turmas.length === 1 ? '' : 's'} sob sua responsabilidade</h2>
+
+    ${
+      comProva
+        ? `<div class="linha-botoes" style="margin:-10px 0 20px">
+             <button class="secundaria" onclick="baixar('/turmas/provas.zip')">
+               Baixar minhas provas em ZIP (${comProva})
+             </button>
+             <span class="pequeno texto-3">
+               cada arquivo já vem nomeado com a disciplina, o turno e a quantidade de cópias
+             </span>
+           </div>`
+        : ''
+    }
+
     <div class="grade g2" style="margin-bottom:22px">${cartoes.join('')}</div>
     <div id="escolha-disciplinas"></div>`
 
