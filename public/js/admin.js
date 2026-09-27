@@ -162,9 +162,10 @@ async function viewPainel() {
  * de optativas) centralizados, com três linhas embaixo — bolinha + texto, uma embaixo
  * da outra — pra "tem aluno cadastrado" (mais importante, é o que interessa pra prova
  * acontecer), "gabarito completo" e "prova anexada". Cada bolinha verde quando ok e
- * vermelha quando falta. Nome do professor e da disciplina ficam acinzentados quando a
- * turma está fora da mistura de salas — cor discreta, que não compete com o vermelho das
- * bolinhas de pendência. Centraliza aqui pra não repetir em cada quadro.
+ * vermelha quando falta. A letra é igual para todas as turmas; o que muda é o FUNDO da
+ * ficha: branco quando a turma entra na mistura de salas, cinza quando fica de fora —
+ * assim a distinção não disputa atenção com o vermelho das bolinhas de pendência.
+ * Centraliza aqui pra não repetir em cada quadro.
  */
 function celulaTurma(t, linhaSecundaria = nomeCompactoDisciplina(t.disciplina)) {
   const okAlunos = t.totalAlunos > 0
@@ -182,13 +183,13 @@ function celulaTurma(t, linhaSecundaria = nomeCompactoDisciplina(t.disciplina)) 
       <span class="${ok ? 'texto-3' : 'texto-bolinha-erro'}">${ok ? rotuloOk : rotuloFalta}</span>
     </div>`
 
-  return `<div class="celula-turma" style="margin-bottom:8px;text-align:center;cursor:${podeAbrir ? 'pointer' : 'default'}"
+  return `<div class="celula-turma ${t.ensalar ? '' : 'fora-mistura'}" style="margin-bottom:8px;text-align:center;cursor:${podeAbrir ? 'pointer' : 'default'}"
       ${podeAbrir ? `data-abrir="${t.id}"` : ''}
       ${t.ensalar ? '' : 'title="Fora da mistura de salas"'}>
-    <strong class="linha-1 ${t.ensalar ? '' : 'texto-nao-misturada'}" title="${t.professor ? esc(nomeExibicao(t.professor.nome)) : ''}">${
+    <strong class="linha-1" title="${t.professor ? esc(nomeExibicao(t.professor.nome)) : ''}">${
       t.professor ? esc(nomeCompactoProfessor(t.professor.nome)) : '<span class="texto-3">sem professor</span>'
     }</strong>
-    <span class="pequeno linha-1 nome-disciplina ${t.ensalar ? '' : 'texto-nao-misturada'}" title="${esc(t.disciplina)}">${esc(linhaSecundaria)}</span>
+    <span class="pequeno linha-1 nome-disciplina" title="${esc(t.disciplina)}">${esc(linhaSecundaria)}</span>
     <div style="display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:4px">
       ${linhaStatus(okAlunos, 'Turma cadastrada', 'Sem aluno cadastrado')}
       ${linhaStatus(okGabarito, 'Gabarito cadastrado', 'Gabarito incompleto')}
@@ -457,8 +458,8 @@ async function viewAdminTurmas() {
       <strong>aluno cadastrado</strong>, se o <strong>gabarito</strong> está completo e se
       a <strong>prova</strong> foi anexada — <strong class="texto-bolinha-ok">verde</strong>
       quando ok, <strong class="texto-bolinha-erro">vermelha</strong> quando falta.
-      Professor e disciplina <strong class="texto-nao-misturada">acinzentados</strong>
-      estão fora da mistura de salas.
+      Turma com <strong>fundo branco</strong> entra na mistura de salas; com
+      <strong class="exemplo-fora-mistura">fundo cinza</strong>, fica de fora.
     </p>
 
     ${montaQuadroTurmas(turmas)}

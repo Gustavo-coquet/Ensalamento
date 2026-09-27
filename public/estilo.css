@@ -217,10 +217,27 @@ tbody tr:hover { background: var(--painel-2); }
 .quadro-turmas tbody tr.linha-periodo-b td { background: rgba(79, 209, 197, 0.13); }
 .quadro-turmas tbody tr:hover td { background: #f2f8f8; }
 
-/* Professor e disciplina acinzentados nos quadros = turma fora da mistura de salas — sem
-   cor viva, pra não competir com o vermelho das bolinhas de pendência nem com o fundo
-   branco novo do quadro. */
-.texto-nao-misturada { color: #9aa7b3 !important; }
+/* Cada turma é uma ficha dentro da célula. A letra é igual para todas; quem diz se ela
+   entra na mistura de salas é o FUNDO — branco entra, cinza fica de fora. Assim a
+   informação não disputa atenção com o vermelho das bolinhas de pendência. */
+.quadro-turmas .celula-turma {
+  background: #fff;
+  border: 1px solid rgba(20, 41, 74, .10);
+  border-radius: 4px;
+  padding: 8px 6px 6px;
+}
+.quadro-turmas .celula-turma.fora-mistura {
+  background: #dfe5ec;
+  border-color: rgba(20, 41, 74, .18);
+}
+
+/* amostra do cinza no texto que explica a legenda, no topo da página */
+.exemplo-fora-mistura {
+  background: #dfe5ec;
+  color: #1c2b3a;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
 
 /* Bolinha de status na célula do quadro (uma pra "tem aluno", outra pra "gabarito
    completo"): verde = ok, vermelha = falta. */
