@@ -348,6 +348,13 @@ tbody tr:hover { background: var(--painel-2); }
   .prova-caixa, .prova-vazia { width: 100%; }
 }
 
+/* Resumo por professor: uma coluna por pendência, com largura própria, para os selos
+   ficarem alinhados de uma linha para a outra. O selo não quebra em duas linhas. */
+.resumo-professores .col-pendencia { white-space: nowrap; width: 1%; }
+.resumo-professores .col-pendencia .pill { display: inline-block; }
+/* "3 disciplinas cadastradas" não quebra no meio; o nome do professor fica com a sobra */
+.resumo-professores td:nth-child(2) { white-space: nowrap; }
+
 /* ---------------------------------- pills -------------------------------- */
 
 .pill {

@@ -45,8 +45,8 @@ function montaResumoPorProfessor(d) {
   // alguma coisa, verde quando aquela dimensão está 100% ok, mesmo que a outra não esteja.
   const selo = (n, rotuloFalta, rotuloOk) =>
     n
-      ? `<span class="pill alerta" style="margin:1px 4px 1px 0">${n} ${rotuloFalta}</span>`
-      : `<span class="pill ok" style="margin:1px 4px 1px 0">${rotuloOk}</span>`
+      ? `<span class="pill alerta">${n} ${rotuloFalta}</span>`
+      : `<span class="pill ok">${rotuloOk}</span>`
 
   // O nome vira link para as turmas daquele professor (com as provas anexadas). Só para
   // o administrador: o coordenador não abre turma que não é dele, então o link levaria
@@ -57,31 +57,38 @@ function montaResumoPorProfessor(d) {
     return `<a href="#professor/${p.id}" title="Ver as turmas e as provas de ${esc(nome)}">${esc(nome)}</a>`
   }
 
+  // Cada pendência ocupa uma COLUNA própria da tabela, e não três selos soltos numa
+  // célula só: assim o selo de gabarito de uma linha fica exatamente embaixo do da linha
+  // de cima, mesmo quando o texto do vizinho é mais curto. Numa célula só, cada linha
+  // empurrava os selos seguintes para uma posição diferente.
   const linha = (nome, p, destaque = false) => `
     <tr>
       <td>${celulaNome(nome, p, destaque)}</td>
       <td>${p.turmas} disciplina${p.turmas === 1 ? '' : 's'} cadastrada${p.turmas === 1 ? '' : 's'}</td>
-      <td>
-        ${
-          p.turmas
-            ? `${selo(p.semAluno, 'sem aluno cadastrado', '100% com aluno cadastrado')}
-               ${selo(p.semGabarito, 'sem gabarito', '100% com gabarito completo')}
-               ${selo(p.semProva, 'sem prova anexada', '100% com prova anexada')}`
-            : '<span class="pill neutro">sem disciplina cadastrada</span>'
-        }
-      </td>
+      ${
+        p.turmas
+          ? `<td class="col-pendencia">${selo(p.semAluno, 'sem aluno cadastrado', '100% com aluno cadastrado')}</td>
+             <td class="col-pendencia">${selo(p.semGabarito, 'sem gabarito', '100% com gabarito completo')}</td>
+             <td class="col-pendencia">${selo(p.semProva, 'sem prova anexada', '100% com prova anexada')}</td>`
+          : '<td class="col-pendencia" colspan="3"><span class="pill neutro">sem disciplina cadastrada</span></td>'
+      }
     </tr>`
 
   return `<div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
     <div class="rotulo-secao" style="margin-bottom:14px">Resumo por professor</div>
-    <table>
-      <thead><tr><th>Professor</th><th>Disciplinas</th><th>Pendências</th></tr></thead>
+    <table class="resumo-professores">
+      <thead>
+        <tr>
+          <th>Professor</th><th>Disciplinas</th>
+          <th>Alunos</th><th>Gabarito</th><th>Prova</th>
+        </tr>
+      </thead>
       <tbody>
         ${linha('Geral (todo o curso)', d.resumoGeral, true)}
         ${
           d.porProfessor.length
             ? d.porProfessor.map((p) => linha(nomeExibicao(p.nome), p)).join('')
-            : '<tr><td colspan="3" class="texto-3">Nenhum professor com disciplina cadastrada ainda.</td></tr>'
+            : '<tr><td colspan="5" class="texto-3">Nenhum professor com disciplina cadastrada ainda.</td></tr>'
         }
       </tbody>
     </table>
