@@ -216,7 +216,7 @@ function celulaTurma(t, linhaSecundaria = nomeCompactoDisciplina(t.disciplina)) 
 // período do Ciclo Básico, junto com as outras disciplinas.
 const OPTATIVAS_BASE = new Set(['Optativa Profissional'])
 
-function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
+function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso, desenhadas = new Set()) {
   const indice = indicePeriodos(curso)
   const relevantes = turmas.filter(
     (t) =>
@@ -249,7 +249,7 @@ function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
       ${DIAS.map((dia) => {
         const itens = porDia.get(dia) || []
         if (!itens.length) return '<td></td>'
-        return `<td>${itens.map((t) => celulaTurma(t)).join('')}</td>`
+        return `<td>${itens.map((t) => { desenhadas.add(t.id); return celulaTurma(t) }).join('')}</td>`
       }).join('')}
     </tr>`
   })
@@ -271,7 +271,7 @@ function montaQuadroCursoTurno(turmas, curso, turno, rotuloCurso) {
  * caem no mesmo dia — e, dentro da célula, no mesmo turno — antes de bater de frente na
  * agenda de alguém.
  */
-function montaQuadroOptativas(turmas) {
+function montaQuadroOptativas(turmas, desenhadas = new Set()) {
   const relevantes = turmas.filter((t) => OPTATIVAS_BASE.has(t.disciplina.split(' — ')[0]))
   if (!relevantes.length) return ''
 
@@ -293,7 +293,9 @@ function montaQuadroOptativas(turmas) {
       ${DIAS.map((dia) => {
         const itens = porDia.get(dia) || []
         if (!itens.length) return '<td></td>'
-        return `<td>${itens.map((t) => celulaTurma(t, ROTULO_TURNO[t.turno] || t.turno)).join('')}</td>`
+        return `<td>${itens
+          .map((t) => { desenhadas.add(t.id); return celulaTurma(t, ROTULO_TURNO[t.turno] || t.turno) })
+          .join('')}</td>`
       }).join('')}
     </tr>`
   })
@@ -314,14 +316,59 @@ function montaQuadroOptativas(turmas) {
 
 /** Quatro quadros por período (Civil-noite, Produção-noite, Civil-manhã, Produção-manhã —
  * noturno primeiro) mais um quadro à parte só das optativas. */
-function montaQuadroTurmas(turmas) {
+function montaQuadroTurmas(turmas, desenhadas = new Set()) {
   return [
-    montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'NOTURNO', 'Eng. Civil'),
-    montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'NOTURNO', 'Eng. de Produção'),
-    montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'DIURNO', 'Eng. Civil'),
-    montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'DIURNO', 'Eng. de Produção'),
-    montaQuadroOptativas(turmas),
+    montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'NOTURNO', 'Eng. Civil', desenhadas),
+    montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'NOTURNO', 'Eng. de Produção', desenhadas),
+    montaQuadroCursoTurno(turmas, 'ENG_CIVIL', 'DIURNO', 'Eng. Civil', desenhadas),
+    montaQuadroCursoTurno(turmas, 'ENG_PRODUCAO', 'DIURNO', 'Eng. de Produção', desenhadas),
+    montaQuadroOptativas(turmas, desenhadas),
   ].join('')
+}
+
+/**
+ * Turma que NENHUM quadro conseguiu desenhar — na prática, turma sem dia da prova
+ * definido, ou de disciplina que não está na grade de nenhum período. Antes ela ficava
+ * invisível: não dava para abrir nem excluir, e como "existe turma" trava a oferta da
+ * disciplina, não havia como tirar a disciplina do semestre. Agora sai listada aqui,
+ * com os mesmos botões de abrir e excluir das células do quadro.
+ */
+function blocoTurmasForaDosQuadros(turmas, desenhadas) {
+  const soltas = turmas.filter((t) => !desenhadas.has(t.id))
+  if (!soltas.length) return ''
+
+  const motivo = (t) => (t.diaSemana ? 'disciplina fora da grade de períodos' : 'sem dia da prova definido')
+
+  const linhas = soltas
+    .map(
+      (t) => `<tr>
+        <td class="texto-3">${t.numero ?? ''}</td>
+        <td><strong>${esc(t.disciplina)}</strong></td>
+        <td class="texto-2">${t.professor ? esc(nomeExibicao(t.professor.nome)) : '<span class="texto-3">sem professor</span>'}</td>
+        <td class="texto-2">${esc(ROTULO_TURNO[t.turno] || t.turno)}</td>
+        <td class="texto-2">${t.totalAlunos} aluno${t.totalAlunos === 1 ? '' : 's'}</td>
+        <td class="texto-3 pequeno">${motivo(t)}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="secundaria" data-abrir="${t.id}" style="padding:5px 12px">abrir</button>
+          <button class="mini" data-excluir="${t.id}" title="Excluir turma">×</button>
+        </td>
+      </tr>`,
+    )
+    .join('')
+
+  return `<div class="cartao cantos" style="margin-bottom:22px"><div class="canto"></div>
+    <div class="rotulo-secao" style="margin-bottom:6px">Turmas fora dos quadros</div>
+    <p class="pequeno texto-3" style="margin-bottom:14px">
+      ${soltas.length} turma${soltas.length === 1 ? '' : 's'} que não aparece${soltas.length === 1 ? '' : 'm'}
+      em nenhum quadro acima — normalmente porque ainda não tem dia de prova definido. Enquanto
+      a turma existir, a disciplina não pode sair da oferta do semestre; defina o dia (abrindo
+      a turma) ou exclua a turma aqui.
+    </p>
+    <table>
+      <thead><tr><th>Nº</th><th>Disciplina</th><th>Professor</th><th>Turno</th><th>Alunos</th><th>Motivo</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+  </div>`
 }
 
 /* ---------------------------------- turmas ---------------------------------- */
@@ -461,6 +508,10 @@ async function viewAdminTurmas() {
   // dele, igual em "Minhas turmas") — pro admin não muda nada, ele já via todas.
   const [{ turmas }, { disciplinas }] = await Promise.all([api('/turmas?todas=1'), api('/admin/disciplinas')])
 
+  // os quadros anotam aqui o que conseguiram desenhar; o que sobrar vai para o bloco
+  // "Turmas fora dos quadros" logo abaixo, pra nenhuma turma ficar inalcançável
+  const desenhadas = new Set()
+
   el('conteudo').innerHTML = `
     <div class="rotulo-secao">Turmas</div>
     <h2 class="titulo">${turmas.length} turma${turmas.length === 1 ? '' : 's'} cadastrada${turmas.length === 1 ? '' : 's'}</h2>
@@ -475,7 +526,9 @@ async function viewAdminTurmas() {
       <strong class="exemplo-fora-mistura">fundo cinza</strong>, fica de fora.
     </p>
 
-    ${montaQuadroTurmas(turmas)}
+    ${montaQuadroTurmas(turmas, desenhadas)}
+
+    ${blocoTurmasForaDosQuadros(turmas, desenhadas)}
 
     ${blocoSemProfessorPorTurno(disciplinas, turmas, 'DIURNO', 'Manhã (diurno)')}
     ${blocoSemProfessorPorTurno(disciplinas, turmas, 'NOTURNO', 'Noite (noturno)')}
